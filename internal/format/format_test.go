@@ -209,26 +209,56 @@ func TestParseOutput_LinksExtracted(t *testing.T) {
 }
 
 func TestParseOutput_AllAuditExamples(t *testing.T) {
-	// Test that the parser can handle actual lem-in output from all valid examples
+	// Verify the format parser correctly handles representative output for each example.
+	// Each case includes the input section and at least one move line.
 	examples := []struct {
 		name     string
+		output   string
 		antCount int
 		minRooms int
-		minLinks int
+		minTurns int
 	}{
-		{"example00", 4, 4, 3},
-		{"example01", 10, 14, 0},
-		{"example02", 20, 4, 0},
-		{"example03", 4, 6, 0},
-		{"example04", 9, 6, 0},
-		{"example05", 9, 25, 0},
+		{
+			name: "example00",
+			output: strings.Join([]string{
+				"4", "##start", "0 0 3", "2 2 5", "3 4 0", "##end", "1 8 3",
+				"0-2", "2-3", "3-1", "",
+				"L1-2", "L1-3 L2-2", "L1-1 L2-3 L3-2", "L2-1 L3-3 L4-2", "L3-1 L4-3", "L4-1",
+			}, "\n"),
+			antCount: 4, minRooms: 4, minTurns: 6,
+		},
+		{
+			name: "example02",
+			output: strings.Join([]string{
+				"20", "##start", "0 1 0", "1 5 0", "2 9 0", "##end", "3 13 0",
+				"0-1", "1-2", "2-3", "",
+				"L1-1", "L1-2 L2-1", "L1-3 L2-2 L3-1",
+			}, "\n"),
+			antCount: 20, minRooms: 4, minTurns: 3,
+		},
 	}
 
 	for _, ex := range examples {
 		t.Run(ex.name, func(t *testing.T) {
-			// Build a representative output string
-			// We can't run the solver here, so we just verify the parser handles
-			// the format correctly with a minimal output
+			parsed, err := ParseOutput(ex.output)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if parsed.AntCount != ex.antCount {
+				t.Errorf("ant count = %d, want %d", parsed.AntCount, ex.antCount)
+			}
+			if len(parsed.Rooms) < ex.minRooms {
+				t.Errorf("rooms = %d, want >= %d", len(parsed.Rooms), ex.minRooms)
+			}
+			if len(parsed.Turns) < ex.minTurns {
+				t.Errorf("turns = %d, want >= %d", len(parsed.Turns), ex.minTurns)
+			}
+			if parsed.StartName == "" {
+				t.Error("start room not identified")
+			}
+			if parsed.EndName == "" {
+				t.Error("end room not identified")
+			}
 		})
 	}
 }

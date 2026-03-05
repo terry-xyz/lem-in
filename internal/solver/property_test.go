@@ -109,11 +109,17 @@ func validateSimulation(t *testing.T, lines []string, antCount int, startName, e
 
 	moveRe := regexp.MustCompile(`^L(\d+)-(\S+)$`)
 	arrivedAtEnd := make(map[int]bool)
+	antPositions := make(map[int]string) // track current position for tunnel detection
 	allIntermediate := make(map[string]bool)
 	for _, p := range paths {
 		for _, r := range p.Rooms[1 : len(p.Rooms)-1] {
 			allIntermediate[r] = true
 		}
+	}
+
+	// Initialize all ants at start
+	for i := 1; i <= antCount; i++ {
+		antPositions[i] = startName
 	}
 
 	for turnIdx, line := range lines {
@@ -124,6 +130,7 @@ func validateSimulation(t *testing.T, lines []string, antCount int, startName, e
 		}
 
 		roomOccupants := make(map[string]int)
+		tunnelsUsed := make(map[string]int)
 		lastAntID := 0
 
 		for _, tok := range tokens {
@@ -147,6 +154,12 @@ func validateSimulation(t *testing.T, lines []string, antCount int, startName, e
 				t.Errorf("turn %d: ant ID %d out of range [1, %d]", turnIdx+1, antID, antCount)
 			}
 
+			// Track tunnel usage
+			prevRoom := antPositions[antID]
+			tunnel := normalizeTunnel(prevRoom, room)
+			tunnelsUsed[tunnel]++
+			antPositions[antID] = room
+
 			if room == endName {
 				arrivedAtEnd[antID] = true
 			}
@@ -162,6 +175,13 @@ func validateSimulation(t *testing.T, lines []string, antCount int, startName, e
 				t.Errorf("turn %d: intermediate room %q has %d ants", turnIdx+1, room, count)
 			}
 		}
+
+		// No tunnel used more than once per turn
+		for tunnel, count := range tunnelsUsed {
+			if count > 1 {
+				t.Errorf("turn %d: tunnel %q used %d times", turnIdx+1, tunnel, count)
+			}
+		}
 	}
 
 	// All ants reach ##end
@@ -170,6 +190,14 @@ func validateSimulation(t *testing.T, lines []string, antCount int, startName, e
 			t.Errorf("ant %d never reached %s", i, endName)
 		}
 	}
+}
+
+// normalizeTunnel returns a canonical string for a tunnel between two rooms.
+func normalizeTunnel(a, b string) string {
+	if a < b {
+		return a + "-" + b
+	}
+	return b + "-" + a
 }
 
 // TestPropertyRandomGraphs tests solver invariants on programmatically generated graphs.

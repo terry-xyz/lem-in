@@ -32,9 +32,6 @@ func Simulate(paths []solver.Path, antsPerPath []int, assignments []solver.AntAs
 	var active []*antState
 	nextAnt := make([]int, len(paths)) // index into pathAnts[i] for next ant to enter
 
-	endRoom := paths[0].Rooms[len(paths[0].Rooms)-1]
-	_ = endRoom
-
 	var lines []string
 
 	for {

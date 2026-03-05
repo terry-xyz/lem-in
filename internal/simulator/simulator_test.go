@@ -99,8 +99,8 @@ func TestSimulate_AntIDOrdering(t *testing.T) {
 func validateOutput(t *testing.T, lines []string, totalAnts int, endRoom string, paths []solver.Path) {
 	t.Helper()
 
-	// Track ant positions
-	antPositions := make(map[int]string)
+	// Track ant positions per turn for tunnel conflict detection
+	antPositions := make(map[int]string) // antID -> current room
 	arrivedAtEnd := make(map[int]bool)
 
 	// Build set of intermediate rooms
@@ -111,9 +111,16 @@ func validateOutput(t *testing.T, lines []string, totalAnts int, endRoom string,
 		}
 	}
 
+	// Initialize all ant positions at start room
+	startRoom := paths[0].Rooms[0]
+	for i := 1; i <= totalAnts; i++ {
+		antPositions[i] = startRoom
+	}
+
 	for turnIdx, line := range lines {
 		tokens := strings.Fields(line)
 		roomOccupants := make(map[string]int) // intermediate room -> count this turn
+		tunnelsUsed := make(map[string]int)   // normalized tunnel -> count this turn
 
 		for _, tok := range tokens {
 			dashIdx := strings.Index(tok[1:], "-")
@@ -125,6 +132,12 @@ func validateOutput(t *testing.T, lines []string, totalAnts int, endRoom string,
 				t.Fatalf("invalid ant ID in %s: %v", tok, err)
 			}
 			room := tok[2+dashIdx:]
+
+			// Track tunnel usage (from previous position to new position)
+			prevRoom := antPositions[antID]
+			tunnel := normalizeTunnel(prevRoom, room)
+			tunnelsUsed[tunnel]++
+
 			antPositions[antID] = room
 
 			if room == endRoom {
@@ -140,6 +153,13 @@ func validateOutput(t *testing.T, lines []string, totalAnts int, endRoom string,
 		for room, count := range roomOccupants {
 			if count > 1 {
 				t.Errorf("turn %d: room %s has %d ants", turnIdx+1, room, count)
+			}
+		}
+
+		// Check no tunnel used more than once per turn
+		for tunnel, count := range tunnelsUsed {
+			if count > 1 {
+				t.Errorf("turn %d: tunnel %s used %d times", turnIdx+1, tunnel, count)
 			}
 		}
 	}
@@ -159,4 +179,12 @@ func validateOutput(t *testing.T, lines []string, totalAnts int, endRoom string,
 	}
 
 	fmt.Printf("  Validated: %d ants, %d turns\n", totalAnts, len(lines))
+}
+
+// normalizeTunnel returns a canonical string for a tunnel between two rooms.
+func normalizeTunnel(a, b string) string {
+	if a < b {
+		return a + "-" + b
+	}
+	return b + "-" + a
 }

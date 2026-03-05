@@ -430,6 +430,49 @@ func TestParse_FileNotFound(t *testing.T) {
 	}
 }
 
+// ---------- 11. Additional room validation edge cases ----------
+
+func TestParse_RoomNameWithDash(t *testing.T) {
+	content := "1\n##start\nmy-room 0 0\n##end\nB 1 1\nmy-room-B\n"
+	path := writeTemp(t, content)
+	_, err := Parse(path)
+	if err == nil {
+		t.Fatal("expected error for room name containing dash, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid room name") {
+		t.Errorf("error = %q, want it to contain 'invalid room name'", err.Error())
+	}
+}
+
+func TestParse_EmptyRoomName(t *testing.T) {
+	// A line like " 0 0" where the room name is empty after Fields split
+	// won't produce an empty name via Fields (it splits on whitespace),
+	// but the parser's parseRoom checks for empty name explicitly.
+	// We can test via a line that would be parsed as a room with empty name.
+	content := "1\n##start\n 0 0\n##end\nB 1 1\n"
+	path := writeTemp(t, content)
+	_, err := Parse(path)
+	if err == nil {
+		t.Fatal("expected error for empty room name, got nil")
+	}
+	// Either "invalid room name" or other parse error is acceptable
+	if !strings.Contains(err.Error(), "ERROR:") {
+		t.Errorf("error = %q, want it to contain 'ERROR:'", err.Error())
+	}
+}
+
+func TestParse_AntCountExceedsLimit(t *testing.T) {
+	content := "99999999\n##start\nA 0 0\n##end\nB 1 1\nA-B\n"
+	path := writeTemp(t, content)
+	_, err := Parse(path)
+	if err == nil {
+		t.Fatal("expected error for ant count exceeding limit, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid number of Ants") {
+		t.Errorf("error = %q, want it to contain 'invalid number of Ants'", err.Error())
+	}
+}
+
 // ---------- Additional edge cases ----------
 
 func TestParse_MinimalValid(t *testing.T) {
