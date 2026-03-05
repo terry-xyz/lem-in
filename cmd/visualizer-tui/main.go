@@ -35,17 +35,22 @@ const (
 	enableAltBuf  = esc + "?1049h"
 	disableAltBuf = esc + "?1049l"
 
-	// Colors (foreground)
+	// Colors – Nord palette (ANSI 256-color)
 	fgReset    = esc + "0m"
-	fgGreen    = esc + "32m"
-	fgRed      = esc + "31m"
-	fgYellow   = esc + "33m"
-	fgDkGreen  = esc + "38;5;22m"  // dark green (256-color)
-	fgBrown    = esc + "38;5;130m" // brown/dark orange (256-color)
-	fgWhite    = esc + "37m"
-	fgCyan     = esc + "36m"
-	fgBoldWht  = esc + "1;37m"
-	fgDimWhite = esc + "2;37m"
+	fgGreen    = esc + "1;38;5;108m" // Nord 14 (#A3BE8C) – start node
+	fgRed      = esc + "1;38;5;131m" // Nord 11 (#BF616A) – end node
+	fgYellow   = esc + "38;5;222m"   // Nord 13 (#EBCB8B) – ants/highlight
+	fgDkGreen  = esc + "38;5;110m"   // Nord  8 (#88C0D0) – tunnels (frost)
+	fgBrown    = esc + "38;5;253m"   // Nord  5 (#E5E9F0) – regular rooms
+	fgWhite    = esc + "38;5;188m"   // Nord  4 (#D8DEE9) – standard text
+	fgCyan     = esc + "38;5;109m"   // Nord  7 (#8FBCBB) – UI chrome
+	fgBoldWht  = esc + "1;38;5;255m" // Nord  6 (#ECEFF4) – headers
+	fgDimWhite = esc + "38;5;188m"   // Nord  4 (#D8DEE9) – panel text
+
+	// Dimmed label colors – Nord polar-night tones
+	fgDimGreen = esc + "38;5;65m" // dimmed start label
+	fgDimRed   = esc + "38;5;95m" // dimmed end label
+	fgDimGray  = esc + "38;5;59m" // Nord 3 (#4C566A) – regular labels
 
 	// Background
 	bgReset = esc + "49m"
@@ -282,70 +287,122 @@ func scaleCoords(rooms []format.ParsedRoom, canvasW, canvasH int) map[string]roo
 }
 
 // ---------------------------------------------------------------------------
-// Bresenham's line drawing
+// Direction-bitmap line drawing (proper merging of crossings & T-junctions)
 // ---------------------------------------------------------------------------
 
-func drawLine(cv *canvas, x0, y0, x1, y1 int, ch rune, fg string) {
-	dx := abs(x1 - x0)
-	dy := -abs(y1 - y0)
-	sx := 1
-	if x0 > x1 {
-		sx = -1
-	}
-	sy := 1
-	if y0 > y1 {
-		sy = -1
-	}
-	err := dx + dy
+type dirFlags uint8
 
-	for {
-		// Don't overwrite room cells -- only draw on empty space
-		existing := cv.get(x0, y0)
-		if existing.ch == ' ' {
-			// Choose directional line character
-			lineCh := lineChar(x0, y0, x1, y1, ch)
-			cv.set(x0, y0, lineCh, fg)
-		}
+const (
+	dirUp    dirFlags = 1 << 0
+	dirDown  dirFlags = 1 << 1
+	dirLeft  dirFlags = 1 << 2
+	dirRight dirFlags = 1 << 3
+)
 
-		if x0 == x1 && y0 == y1 {
-			break
+// boxChar converts direction flags to the appropriate box-drawing character.
+func boxChar(d dirFlags) rune {
+	switch d {
+	case dirLeft | dirRight:
+		return '─'
+	case dirUp | dirDown:
+		return '│'
+	case dirRight | dirDown:
+		return '┌'
+	case dirLeft | dirDown:
+		return '┐'
+	case dirRight | dirUp:
+		return '└'
+	case dirLeft | dirUp:
+		return '┘'
+	case dirUp | dirDown | dirRight:
+		return '├'
+	case dirUp | dirDown | dirLeft:
+		return '┤'
+	case dirLeft | dirRight | dirDown:
+		return '┬'
+	case dirLeft | dirRight | dirUp:
+		return '┴'
+	case dirLeft | dirRight | dirUp | dirDown:
+		return '┼'
+	default:
+		if d&(dirLeft|dirRight) != 0 {
+			return '─'
 		}
-		e2 := 2 * err
-		if e2 >= dy {
-			err += dy
-			x0 += sx
+		if d&(dirUp|dirDown) != 0 {
+			return '│'
 		}
-		if e2 <= dx {
-			err += dx
-			y0 += sy
+		return ' '
+	}
+}
+
+type dirGrid struct {
+	w, h  int
+	flags [][]dirFlags
+}
+
+func newDirGrid(w, h int) *dirGrid {
+	g := &dirGrid{w: w, h: h, flags: make([][]dirFlags, h)}
+	for y := 0; y < h; y++ {
+		g.flags[y] = make([]dirFlags, w)
+	}
+	return g
+}
+
+func (g *dirGrid) addFlag(x, y int, d dirFlags) {
+	if x >= 0 && x < g.w && y >= 0 && y < g.h {
+		g.flags[y][x] |= d
+	}
+}
+
+// tracePath traces an L-shaped orthogonal path from (x0,y0) to (x1,y1).
+// Routes horizontal first, then vertical.
+func (g *dirGrid) tracePath(x0, y0, x1, y1 int) {
+	if x0 == x1 && y0 == y1 {
+		return
+	}
+
+	// Horizontal segment from (x0,y0) to (x1,y0)
+	if x0 != x1 {
+		sx := 1
+		var dirFwd, dirBwd dirFlags
+		if x1 > x0 {
+			dirFwd, dirBwd = dirRight, dirLeft
+		} else {
+			sx = -1
+			dirFwd, dirBwd = dirLeft, dirRight
+		}
+		for x := x0; x != x1; x += sx {
+			g.addFlag(x, y0, dirFwd)
+			g.addFlag(x+sx, y0, dirBwd)
+		}
+	}
+
+	// Vertical segment from (x1,y0) to (x1,y1)
+	if y0 != y1 {
+		sy := 1
+		var dirFwd, dirBwd dirFlags
+		if y1 > y0 {
+			dirFwd, dirBwd = dirDown, dirUp
+		} else {
+			sy = -1
+			dirFwd, dirBwd = dirUp, dirDown
+		}
+		for y := y0; y != y1; y += sy {
+			g.addFlag(x1, y, dirFwd)
+			g.addFlag(x1, y+sy, dirBwd)
 		}
 	}
 }
 
-// lineChar picks a Unicode box-drawing character for tunnel segments.
-func lineChar(x0, y0, x1, y1 int, fallback rune) rune {
-	dx := abs(x1 - x0)
-	dy := abs(y1 - y0)
-	if dx == 0 {
-		return '│' // U+2502 vertical
+// applyToCanvas writes box-drawing characters to the canvas.
+func (g *dirGrid) applyToCanvas(cv *canvas, fg string) {
+	for y := 0; y < g.h; y++ {
+		for x := 0; x < g.w; x++ {
+			if g.flags[y][x] != 0 {
+				cv.set(x, y, boxChar(g.flags[y][x]), fg)
+			}
+		}
 	}
-	if dy == 0 {
-		return '─' // U+2500 horizontal
-	}
-	// Nearly horizontal or nearly vertical
-	if dx > dy*2 {
-		return '─'
-	}
-	if dy > dx*2 {
-		return '│'
-	}
-	// Diagonal: determine direction
-	goingRight := x1 > x0
-	goingDown := y1 > y0
-	if goingRight == goingDown {
-		return '╲' // U+2572 upper-left to lower-right
-	}
-	return '╱' // U+2571 upper-right to lower-left
 }
 
 func abs(x int) int {
@@ -364,15 +421,33 @@ type playMode int
 const (
 	modeAutoPlay playMode = iota
 	modeStep
+	modeSlider
 )
+
+// point is a screen coordinate pair.
+type point struct{ x, y int }
+
+// animEntry describes one ant's animation path for a transition.
+type animEntry struct {
+	antID int
+	path  []point // sequence of screen cells from source to destination
+}
 
 type playback struct {
 	mode     playMode
 	paused   bool
 	turnIdx  int // -1 = initial state (before any moves)
-	speed    int // milliseconds per turn
+	speed    int // milliseconds per animation transition
 	minSpeed int
 	maxSpeed int
+
+	// Animation state
+	animating  bool
+	animForward bool         // true = forward transition, false = backward
+	animFrame  int           // current frame (0..animTotal-1)
+	animTotal  int           // total frames for this transition
+	entries    []animEntry   // ants being animated this turn
+	preAnts    *antState     // snapshot BEFORE the transition
 }
 
 func newPlayback() *playback {
@@ -400,6 +475,16 @@ func (p *playback) slower() {
 	}
 }
 
+// animDuration returns the number of frames for one transition based on speed.
+func (p *playback) animDuration() int {
+	const frameDurationMs = 33
+	frames := p.speed / frameDurationMs
+	if frames < 2 {
+		frames = 2
+	}
+	return frames
+}
+
 // ---------------------------------------------------------------------------
 // Ant state tracking
 // ---------------------------------------------------------------------------
@@ -420,6 +505,15 @@ func (as *antState) applyTurn(moves []format.Movement) {
 	for _, m := range moves {
 		as.positions[m.AntID] = m.RoomName
 	}
+}
+
+// clone returns a deep copy of the ant state.
+func (as *antState) clone() *antState {
+	c := &antState{positions: make(map[int]string, len(as.positions))}
+	for k, v := range as.positions {
+		c.positions[k] = v
+	}
+	return c
 }
 
 // antsAtRoom returns a sorted list of ant IDs currently at the given room.
@@ -472,17 +566,71 @@ func newRenderer(parsed *format.ParsedOutput, termW, termH int) *renderer {
 	}
 }
 
+// computePath generates an L-shaped screen path from srcRoom to dstRoom.
+// Horizontal first, then vertical (matching tunnel drawing).
+func (rn *renderer) computePath(srcRoom, dstRoom string) []point {
+	src, okS := rn.positions[srcRoom]
+	dst, okD := rn.positions[dstRoom]
+	if !okS || !okD {
+		return []point{{src.screenX, src.screenY}}
+	}
+	if src.screenX == dst.screenX && src.screenY == dst.screenY {
+		return []point{{src.screenX, src.screenY}}
+	}
+
+	var path []point
+	// Horizontal segment
+	x, y := src.screenX, src.screenY
+	if dst.screenX != x {
+		dx := 1
+		if dst.screenX < x {
+			dx = -1
+		}
+		for x != dst.screenX {
+			path = append(path, point{x, y})
+			x += dx
+		}
+	}
+	// Vertical segment
+	if dst.screenY != y {
+		dy := 1
+		if dst.screenY < y {
+			dy = -1
+		}
+		for y != dst.screenY {
+			path = append(path, point{x, y})
+			y += dy
+		}
+	}
+	// Final destination point
+	path = append(path, point{dst.screenX, dst.screenY})
+	return path
+}
+
+// computeTransition builds animation entries for one turn's movements.
+func (rn *renderer) computeTransition(ants *antState, moves []format.Movement) []animEntry {
+	entries := make([]animEntry, 0, len(moves))
+	for _, m := range moves {
+		srcRoom := ants.positions[m.AntID]
+		path := rn.computePath(srcRoom, m.RoomName)
+		entries = append(entries, animEntry{antID: m.AntID, path: path})
+	}
+	return entries
+}
+
 func (rn *renderer) render(sb *screenBuf, ants *antState, pb *playback) {
 	cv := newCanvas(rn.canvasW, rn.canvasH)
 
-	// 1. Draw tunnels (lines between linked rooms)
+	// 1. Draw tunnels using direction grid for proper line merging
+	dg := newDirGrid(rn.canvasW, rn.canvasH)
 	for _, link := range rn.parsed.Links {
 		posA, okA := rn.positions[link[0]]
 		posB, okB := rn.positions[link[1]]
 		if okA && okB {
-			drawLine(cv, posA.screenX, posA.screenY, posB.screenX, posB.screenY, '·', fgDkGreen)
+			dg.tracePath(posA.screenX, posA.screenY, posB.screenX, posB.screenY)
 		}
 	}
+	dg.applyToCanvas(cv, fgDkGreen)
 
 	// 2. Draw rooms
 	for _, room := range rn.parsed.Rooms {
@@ -491,18 +639,21 @@ func (rn *renderer) render(sb *screenBuf, ants *antState, pb *playback) {
 			continue
 		}
 
-		var color string
+		var color, labelColor string
 		var symbol rune
 		switch {
 		case room.IsStart:
 			color = fgGreen
-			symbol = 'S'
+			labelColor = fgDimGreen
+			symbol = '\u25C9' // ◉
 		case room.IsEnd:
 			color = fgRed
-			symbol = 'E'
+			labelColor = fgDimRed
+			symbol = '\u25CE' // ◎
 		default:
 			color = fgBrown
-			symbol = 'O'
+			labelColor = fgDimGray
+			symbol = '\u25CF' // ●
 		}
 
 		// Draw room symbol
@@ -523,62 +674,80 @@ func (rn *renderer) render(sb *screenBuf, ants *antState, pb *playback) {
 		if labelX < 0 {
 			labelX = 0
 		}
-		cv.setStr(labelX, pos.screenY, label, color)
+		cv.setStr(labelX, pos.screenY, label, labelColor)
 	}
 
-	// 3. Draw ants at their current positions
-	for _, room := range rn.parsed.Rooms {
-		pos, ok := rn.positions[room.Name]
-		if !ok {
-			continue
-		}
-		antIDs := ants.antsAtRoom(room.Name)
-		if len(antIDs) == 0 {
-			continue
+	// 3. Draw ants
+	if pb.animating && pb.preAnts != nil {
+		// Build set of ant IDs that are moving this frame
+		movingAnts := make(map[int]bool, len(pb.entries))
+		for _, e := range pb.entries {
+			movingAnts[e.antID] = true
 		}
 
-		// Show ant marker below the room if possible, otherwise above
-		antY := pos.screenY + 1
-		if antY >= rn.canvasH {
-			antY = pos.screenY - 1
-		}
-		if antY < 0 {
-			antY = pos.screenY
-		}
-
-		// Build ant label
-		var antLabel string
-		if len(antIDs) <= 3 {
-			parts := make([]string, len(antIDs))
-			for i, id := range antIDs {
-				parts[i] = fmt.Sprintf("L%d", id)
+		// Draw non-moving ants from pre-transition snapshot
+		for _, room := range rn.parsed.Rooms {
+			pos, ok := rn.positions[room.Name]
+			if !ok {
+				continue
 			}
-			antLabel = strings.Join(parts, ",")
-		} else {
-			antLabel = fmt.Sprintf("L%d..(%d)", antIDs[0], len(antIDs))
+			allIDs := pb.preAnts.antsAtRoom(room.Name)
+			var staticIDs []int
+			for _, id := range allIDs {
+				if !movingAnts[id] {
+					staticIDs = append(staticIDs, id)
+				}
+			}
+			if len(staticIDs) == 0 {
+				continue
+			}
+			rn.drawAntLabel(cv, pos.screenX, pos.screenY, staticIDs)
 		}
 
-		if len(antLabel) > rn.canvasW-2 {
-			antLabel = antLabel[:rn.canvasW-2]
+		// Draw moving ants at interpolated positions
+		for _, e := range pb.entries {
+			idx := pb.animFrame * (len(e.path) - 1) / (pb.animTotal - 1)
+			if idx >= len(e.path) {
+				idx = len(e.path) - 1
+			}
+			p := e.path[idx]
+			label := fmt.Sprintf("\u25B8L%d", e.antID)
+			lx := p.x - len(label)/2
+			if lx < 0 {
+				lx = 0
+			}
+			if lx+len(label) >= rn.canvasW {
+				lx = rn.canvasW - len(label) - 1
+			}
+			if lx < 0 {
+				lx = 0
+			}
+			// Draw at the cell row offset by 1 if possible
+			ay := p.y + 1
+			if ay >= rn.canvasH {
+				ay = p.y - 1
+			}
+			if ay < 0 {
+				ay = p.y
+			}
+			cv.setStr(lx, ay, label, fgYellow)
 		}
-
-		// Center the label under the room
-		labelX := pos.screenX - len(antLabel)/2
-		if labelX < 0 {
-			labelX = 0
+	} else {
+		// Static: draw ants at their current room positions
+		for _, room := range rn.parsed.Rooms {
+			pos, ok := rn.positions[room.Name]
+			if !ok {
+				continue
+			}
+			antIDs := ants.antsAtRoom(room.Name)
+			if len(antIDs) == 0 {
+				continue
+			}
+			rn.drawAntLabel(cv, pos.screenX, pos.screenY, antIDs)
 		}
-		if labelX+len(antLabel) >= rn.canvasW {
-			labelX = rn.canvasW - len(antLabel) - 1
-		}
-		if labelX < 0 {
-			labelX = 0
-		}
-
-		cv.setStr(labelX, antY, antLabel, fgYellow)
 	}
 
-	// Build output
-	sb.write(clearScreen)
+	// Build output – overwrite in place to prevent flicker (no clearScreen)
 	sb.write(moveTo(1, 1))
 
 	// Render canvas rows
@@ -593,6 +762,13 @@ func (rn *renderer) render(sb *screenBuf, ants *antState, pb *playback) {
 			}
 			sb.writef("%c", c.ch)
 		}
+		sb.write(esc + "K") // clear to end of line
+	}
+	// Clear gap rows between canvas and panel
+	panelTop := rn.termH - rn.panelH + 1
+	for row := rn.canvasH + 1; row < panelTop; row++ {
+		sb.write(moveTo(row, 1))
+		sb.write(esc + "2K")
 	}
 	sb.write(fgReset)
 
@@ -602,13 +778,58 @@ func (rn *renderer) render(sb *screenBuf, ants *antState, pb *playback) {
 	sb.flush()
 }
 
+// drawAntLabel draws an ant label for the given IDs near the given screen position.
+func (rn *renderer) drawAntLabel(cv *canvas, sx, sy int, antIDs []int) {
+	antY := sy + 1
+	if antY >= rn.canvasH {
+		antY = sy - 1
+	}
+	if antY < 0 {
+		antY = sy
+	}
+
+	var antLabel string
+	if len(antIDs) <= 3 {
+		parts := make([]string, len(antIDs))
+		for i, id := range antIDs {
+			parts[i] = fmt.Sprintf("L%d", id)
+		}
+		antLabel = "\u25B8" + strings.Join(parts, ",")
+	} else {
+		antLabel = fmt.Sprintf("\u25B8L%d..(%d)", antIDs[0], len(antIDs))
+	}
+
+	if len(antLabel) > rn.canvasW-2 {
+		antLabel = antLabel[:rn.canvasW-2]
+	}
+
+	labelX := sx - len(antLabel)/2
+	if labelX < 0 {
+		labelX = 0
+	}
+	if labelX+len(antLabel) >= rn.canvasW {
+		labelX = rn.canvasW - len(antLabel) - 1
+	}
+	if labelX < 0 {
+		labelX = 0
+	}
+
+	cv.setStr(labelX, antY, antLabel, fgYellow)
+}
+
 func (rn *renderer) renderPanel(sb *screenBuf, pb *playback) {
 	panelTop := rn.termH - rn.panelH + 1
+
+	// Clear all panel rows to prevent stale content
+	for row := panelTop; row <= rn.termH; row++ {
+		sb.write(moveTo(row, 1))
+		sb.write(esc + "2K")
+	}
 
 	// Separator line
 	sb.write(moveTo(panelTop, 1))
 	sb.write(fgDimWhite)
-	sb.write(strings.Repeat("\u2500", rn.termW)) // horizontal box-drawing char
+	sb.write(strings.Repeat("\u2550", rn.termW)) // double horizontal box-drawing char
 	sb.write(fgReset)
 
 	// Turn info
@@ -630,8 +851,11 @@ func (rn *renderer) renderPanel(sb *screenBuf, pb *playback) {
 	// Mode and speed
 	sb.write(moveTo(panelTop+2, 2))
 	modeStr := "AUTO"
-	if pb.mode == modeStep {
+	switch pb.mode {
+	case modeStep:
 		modeStr = "STEP"
+	case modeSlider:
+		modeStr = "SLIDER"
 	}
 	if pb.paused && pb.mode == modeAutoPlay {
 		modeStr = "PAUSED"
@@ -642,29 +866,30 @@ func (rn *renderer) renderPanel(sb *screenBuf, pb *playback) {
 
 	sb.write(moveTo(panelTop+2, 30))
 	sb.write(fgCyan)
-	sb.writef("Speed: %dms", pb.speed)
+	mult := math.Round(800.0/float64(pb.speed)*10) / 10
+	sb.writef("Speed: x%g", mult)
 	sb.write(fgReset)
 
 	// Legend
 	sb.write(moveTo(panelTop+3, 2))
 	sb.write(fgGreen)
-	sb.write("S")
+	sb.write("\u25C9")
 	sb.write(fgDimWhite)
 	sb.write("=Start  ")
 	sb.write(fgRed)
-	sb.write("E")
+	sb.write("\u25CE")
 	sb.write(fgDimWhite)
 	sb.write("=End  ")
 	sb.write(fgBrown)
-	sb.write("O")
+	sb.write("\u25CF")
 	sb.write(fgDimWhite)
 	sb.write("=Room  ")
 	sb.write(fgYellow)
-	sb.write("Ln")
+	sb.write("\u25B8Ln")
 	sb.write(fgDimWhite)
 	sb.write("=Ant  ")
 	sb.write(fgDkGreen)
-	sb.write("─│╱╲")
+	sb.write("───")
 	sb.write(fgDimWhite)
 	sb.write("=Tunnel")
 	sb.write(fgReset)
@@ -672,7 +897,7 @@ func (rn *renderer) renderPanel(sb *screenBuf, pb *playback) {
 	// Controls help
 	sb.write(moveTo(panelTop+5, 2))
 	sb.write(fgDimWhite)
-	sb.write("[Space] Pause/Resume   [+/-] Speed   [p] Toggle Step/Auto")
+	sb.write("[Space] Pause/Resume   [+/-] Speed   [p] Mode: Auto/Step/Slider")
 	sb.write(fgReset)
 
 	sb.write(moveTo(panelTop+6, 2))
@@ -932,12 +1157,108 @@ func main() {
 		return as
 	}
 
+	// finishAnimation snaps the current animation to its end state.
+	finishAnimation := func() {
+		if !pb.animating {
+			return
+		}
+		pb.animating = false
+		pb.entries = nil
+		pb.preAnts = nil
+	}
+
+	// reverseAnimation smoothly reverses the current animation from its
+	// current midpoint position, so ants travel back the way they came.
+	reverseAnimation := func() {
+		if !pb.animating || pb.preAnts == nil {
+			return
+		}
+		// Swap ants (destination) and preAnts (source)
+		oldAnts := ants
+		ants = pb.preAnts
+		pb.preAnts = oldAnts
+		// Reverse each animation path
+		for i := range pb.entries {
+			p := pb.entries[i].path
+			for l, r := 0, len(p)-1; l < r; l, r = l+1, r-1 {
+				p[l], p[r] = p[r], p[l]
+			}
+		}
+		// Mirror the frame so the visual position stays the same
+		pb.animFrame = pb.animTotal - 1 - pb.animFrame
+		if pb.animFrame < 0 {
+			pb.animFrame = 0
+		}
+		// Adjust turnIdx and flip direction
+		if pb.animForward {
+			pb.turnIdx--
+		} else {
+			pb.turnIdx++
+		}
+		pb.animForward = !pb.animForward
+	}
+
+	// startTransition begins a smooth animation for the next/prev turn.
+	startTransitionForward := func() {
+		nextTurn := pb.turnIdx + 1
+		if nextTurn >= len(parsed.Turns) {
+			return
+		}
+		pb.preAnts = ants.clone()
+		pb.entries = rend.computeTransition(ants, parsed.Turns[nextTurn])
+		pb.turnIdx = nextTurn
+		ants.applyTurn(parsed.Turns[nextTurn])
+		pb.animFrame = 0
+		pb.animTotal = pb.animDuration()
+		pb.animForward = true
+		pb.animating = true
+	}
+
+	startTransitionBackward := func() {
+		if pb.turnIdx < 0 {
+			return
+		}
+		pb.preAnts = ants.clone()
+		// We compute the reverse: ants move from current positions back to previous
+		prevTurn := pb.turnIdx - 1
+		prevAnts := recomputeAnts(prevTurn)
+		// Build entries: for each ant that moved in the current turn, animate backward
+		moves := parsed.Turns[pb.turnIdx]
+		entries := make([]animEntry, 0, len(moves))
+		for _, m := range moves {
+			// Ant is currently at m.RoomName, needs to go back to where prevAnts has it
+			srcRoom := m.RoomName
+			dstRoom := prevAnts.positions[m.AntID]
+			path := rend.computePath(srcRoom, dstRoom)
+			entries = append(entries, animEntry{antID: m.AntID, path: path})
+		}
+		pb.turnIdx = prevTurn
+		ants = prevAnts
+		pb.entries = entries
+		pb.animFrame = 0
+		pb.animTotal = pb.animDuration()
+		pb.animForward = false
+		pb.animating = true
+	}
+
+	// Step-mode per-direction hold suppression: each direction has its own
+	// lock so that holding Right doesn't break when Left reverses (and
+	// vice-versa). A lock stays active while events keep arriving within
+	// stepLockGap; a gap longer than that is interpreted as a new key press.
+	var stepFwdActive, stepBwdActive bool
+	var stepFwdLast, stepBwdLast time.Time
+	const stepLockGap = 500 * time.Millisecond  // held-key suppression during opposite-dir animation
+	const stepRepeatGap = 100 * time.Millisecond // post-animation auto-repeat suppression
+
 	// Initial render
 	rend.render(sb, ants, pb)
 
-	// Main loop
-	ticker := time.NewTicker(time.Duration(pb.speed) * time.Millisecond)
+	// Frame-based ticker (~30fps)
+	const frameDuration = 33 * time.Millisecond
+	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
+
+	elapsed := 0 // accumulated ms for auto-advance
 
 	running := true
 	for running {
@@ -954,60 +1275,159 @@ func main() {
 				if pb.mode == modeAutoPlay {
 					pb.paused = !pb.paused
 				}
+				finishAnimation()
 				rend.render(sb, ants, pb)
 
 			case keyPlus:
 				pb.faster()
-				ticker.Reset(time.Duration(pb.speed) * time.Millisecond)
 				rend.render(sb, ants, pb)
 
 			case keyMinus:
 				pb.slower()
-				ticker.Reset(time.Duration(pb.speed) * time.Millisecond)
 				rend.render(sb, ants, pb)
 
 			case keyP:
-				if pb.mode == modeAutoPlay {
+				switch pb.mode {
+				case modeAutoPlay:
 					pb.mode = modeStep
-					pb.paused = false
-				} else {
+				case modeStep:
+					pb.mode = modeSlider
+				case modeSlider:
 					pb.mode = modeAutoPlay
-					pb.paused = false
 				}
+				pb.paused = false
+				stepFwdActive = false
+				stepBwdActive = false
+				finishAnimation()
 				rend.render(sb, ants, pb)
 
 			case keyR:
+				finishAnimation()
+				stepFwdActive = false
+				stepBwdActive = false
 				pb.turnIdx = -1
 				pb.paused = false
 				ants = newAntState(parsed.AntCount, parsed.StartName)
 				rend.render(sb, ants, pb)
 
 			case keyEnter, keyRight:
-				// Advance one turn
-				if pb.turnIdx+1 < len(parsed.Turns) {
-					pb.turnIdx++
-					ants.applyTurn(parsed.Turns[pb.turnIdx])
-					rend.render(sb, ants, pb)
+				if pb.mode == modeStep && stepFwdActive {
+					now := time.Now()
+					if pb.animating {
+						if pb.animForward {
+							// Same direction: always suppress
+							stepFwdLast = now
+							break
+						}
+						// Opposite direction: suppress if recent (held key)
+						if now.Sub(stepFwdLast) < stepLockGap {
+							stepFwdLast = now
+							break
+						}
+						stepFwdActive = false
+					} else {
+						// Post-animation: only suppress rapid auto-repeat
+						if now.Sub(stepFwdLast) < stepRepeatGap {
+							stepFwdLast = now
+							break
+						}
+						stepFwdActive = false
+					}
 				}
+				if pb.animating {
+					if !pb.animForward {
+						reverseAnimation()
+						if pb.mode == modeStep {
+							stepFwdActive = true
+							stepFwdLast = time.Now()
+							if stepBwdActive {
+								stepBwdLast = time.Now()
+							}
+						}
+						rend.render(sb, ants, pb)
+						break
+					}
+					finishAnimation()
+				}
+				elapsed = 0
+				startTransitionForward()
+				if pb.mode == modeStep && pb.animating {
+					stepFwdActive = true
+					stepFwdLast = time.Now()
+				}
+				rend.render(sb, ants, pb)
 
 			case keyLeft:
-				// Go back one turn
-				if pb.turnIdx >= 0 {
-					pb.turnIdx--
-					ants = recomputeAnts(pb.turnIdx)
-					rend.render(sb, ants, pb)
+				if pb.mode == modeStep && stepBwdActive {
+					now := time.Now()
+					if pb.animating {
+						if !pb.animForward {
+							// Same direction (backward): always suppress
+							stepBwdLast = now
+							break
+						}
+						// Opposite direction: suppress if recent (held key)
+						if now.Sub(stepBwdLast) < stepLockGap {
+							stepBwdLast = now
+							break
+						}
+						stepBwdActive = false
+					} else {
+						// Post-animation: only suppress rapid auto-repeat
+						if now.Sub(stepBwdLast) < stepRepeatGap {
+							stepBwdLast = now
+							break
+						}
+						stepBwdActive = false
+					}
 				}
+				if pb.animating {
+					if pb.animForward {
+						reverseAnimation()
+						if pb.mode == modeStep {
+							stepBwdActive = true
+							stepBwdLast = time.Now()
+							if stepFwdActive {
+								stepFwdLast = time.Now()
+							}
+						}
+						rend.render(sb, ants, pb)
+						break
+					}
+					finishAnimation()
+				}
+				elapsed = 0
+				startTransitionBackward()
+				if pb.mode == modeStep && pb.animating {
+					stepBwdActive = true
+					stepBwdLast = time.Now()
+				}
+				rend.render(sb, ants, pb)
 			}
 
 		case <-ticker.C:
-			if pb.mode == modeAutoPlay && !pb.paused {
-				if pb.turnIdx+1 < len(parsed.Turns) {
-					pb.turnIdx++
-					ants.applyTurn(parsed.Turns[pb.turnIdx])
-					rend.render(sb, ants, pb)
-				} else {
-					// Playback finished, auto-pause
-					pb.paused = true
+			if pb.animating {
+				pb.animFrame++
+				if pb.animFrame >= pb.animTotal {
+					finishAnimation()
+					// In auto mode, chain the next transition immediately
+					if pb.mode == modeAutoPlay && !pb.paused {
+						startTransitionForward()
+						if !pb.animating {
+							pb.paused = true
+						}
+					}
+				}
+				rend.render(sb, ants, pb)
+			} else if pb.mode == modeAutoPlay && !pb.paused {
+				elapsed += int(frameDuration / time.Millisecond)
+				if elapsed >= 800 {
+					elapsed = 0
+					startTransitionForward()
+					if !pb.animating {
+						// No more turns, auto-pause
+						pb.paused = true
+					}
 					rend.render(sb, ants, pb)
 				}
 			}

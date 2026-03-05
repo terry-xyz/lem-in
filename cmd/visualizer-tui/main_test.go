@@ -68,33 +68,85 @@ func TestScaleCoords_EmptyRooms(t *testing.T) {
 	}
 }
 
-func TestLineChar_Vertical(t *testing.T) {
-	ch := lineChar(5, 0, 5, 10, '*')
-	if ch != '│' {
-		t.Errorf("expected '│' for vertical, got %c", ch)
+func TestDirGrid_Horizontal(t *testing.T) {
+	dg := newDirGrid(20, 10)
+	cv := newCanvas(20, 10)
+	dg.tracePath(2, 5, 8, 5)
+	dg.applyToCanvas(cv, fgDkGreen)
+	for x := 2; x <= 8; x++ {
+		c := cv.get(x, 5)
+		if c.ch != '─' {
+			t.Errorf("at (%d,5) expected '─', got %c", x, c.ch)
+		}
 	}
 }
 
-func TestLineChar_Horizontal(t *testing.T) {
-	ch := lineChar(0, 5, 10, 5, '*')
-	if ch != '─' {
-		t.Errorf("expected '─' for horizontal, got %c", ch)
+func TestDirGrid_Vertical(t *testing.T) {
+	dg := newDirGrid(20, 10)
+	cv := newCanvas(20, 10)
+	dg.tracePath(5, 2, 5, 8)
+	dg.applyToCanvas(cv, fgDkGreen)
+	for y := 2; y <= 8; y++ {
+		c := cv.get(5, y)
+		if c.ch != '│' {
+			t.Errorf("at (5,%d) expected '│', got %c", y, c.ch)
+		}
 	}
 }
 
-func TestLineChar_DiagonalDownRight(t *testing.T) {
-	// Going right and down (goingRight == goingDown == true) -> ╲
-	ch := lineChar(0, 0, 5, 5, '*')
-	if ch != '╲' {
-		t.Errorf("expected '╲' for down-right diagonal, got %c", ch)
+func TestDirGrid_LShape(t *testing.T) {
+	dg := newDirGrid(20, 10)
+	cv := newCanvas(20, 10)
+	dg.tracePath(2, 2, 8, 6)
+	dg.applyToCanvas(cv, fgDkGreen)
+	// Horizontal segment at row 2 from x=2 to x=7
+	for x := 2; x <= 7; x++ {
+		c := cv.get(x, 2)
+		if c.ch != '─' {
+			t.Errorf("at (%d,2) expected '─', got %c", x, c.ch)
+		}
+	}
+	// Vertical segment at col 8 from y=3 to y=6
+	for y := 3; y <= 6; y++ {
+		c := cv.get(8, y)
+		if c.ch != '│' {
+			t.Errorf("at (8,%d) expected '│', got %c", y, c.ch)
+		}
+	}
+	// Corner at (8, 2): right-then-down = ┐
+	c := cv.get(8, 2)
+	if c.ch != '┐' {
+		t.Errorf("at (8,2) expected '┐', got %c", c.ch)
 	}
 }
 
-func TestLineChar_DiagonalDownLeft(t *testing.T) {
-	// Going left and down (goingRight=false, goingDown=true) -> ╱
-	ch := lineChar(5, 0, 0, 5, '*')
-	if ch != '╱' {
-		t.Errorf("expected '╱' for down-left diagonal, got %c", ch)
+func TestDirGrid_TJunction(t *testing.T) {
+	dg := newDirGrid(20, 10)
+	cv := newCanvas(20, 10)
+	// Horizontal line on row 5
+	dg.tracePath(0, 5, 9, 5)
+	// L-shape from (5,5) going up to (5,0) — corner merges with horizontal
+	dg.tracePath(5, 5, 5, 0)
+	dg.applyToCanvas(cv, fgDkGreen)
+	// At (5,5): horizontal contributes left+right, vertical contributes up → ┴
+	c := cv.get(5, 5)
+	if c.ch != '┴' {
+		t.Errorf("at (5,5) expected '┴' (T-junction), got %c", c.ch)
+	}
+}
+
+func TestDirGrid_Crossing(t *testing.T) {
+	dg := newDirGrid(20, 10)
+	cv := newCanvas(20, 10)
+	// Horizontal line on row 5
+	dg.tracePath(0, 5, 9, 5)
+	// Vertical line on col 5
+	dg.tracePath(5, 0, 5, 9)
+	dg.applyToCanvas(cv, fgDkGreen)
+	// At (5,5): should be ┼
+	c := cv.get(5, 5)
+	if c.ch != '┼' {
+		t.Errorf("at (5,5) expected '┼', got %c", c.ch)
 	}
 }
 
