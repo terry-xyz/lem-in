@@ -366,3 +366,94 @@ func TestAuditExample04(t *testing.T) {
 		t.Errorf("example04: expected <= 6 turns, got %d", turns)
 	}
 }
+
+// TestDistributeSingleAntUnequalPaths verifies a single ant goes to the shortest path.
+func TestDistributeSingleAntUnequalPaths(t *testing.T) {
+	paths := []Path{
+		{Rooms: []string{"start", "A", "end"}},       // length 2
+		{Rooms: []string{"start", "B", "C", "end"}},  // length 3
+	}
+
+	counts, assignments := DistributeAnts(paths, 1)
+
+	if len(assignments) != 1 {
+		t.Fatalf("expected 1 assignment, got %d", len(assignments))
+	}
+	if assignments[0].PathIndex != 0 {
+		t.Errorf("single ant should be on shortest path (index 0), got index %d", assignments[0].PathIndex)
+	}
+	if counts[0] != 1 {
+		t.Errorf("shortest path should have 1 ant, got %d", counts[0])
+	}
+	if counts[1] != 0 {
+		t.Errorf("longer path should have 0 ants, got %d", counts[1])
+	}
+}
+
+// TestDistributeUnequalLengths verifies distribution with paths of different lengths.
+func TestDistributeUnequalLengths(t *testing.T) {
+	paths := []Path{
+		{Rooms: []string{"start", "A", "end"}},          // length 2
+		{Rooms: []string{"start", "B", "C", "end"}},     // length 3
+		{Rooms: []string{"start", "D", "E", "F", "end"}}, // length 4
+	}
+
+	counts, assignments := DistributeAnts(paths, 10)
+
+	total := 0
+	for _, c := range counts {
+		total += c
+		if c < 0 {
+			t.Errorf("negative ant count: %d", c)
+		}
+	}
+	if total != 10 {
+		t.Errorf("expected 10 total ants, got %d", total)
+	}
+	if len(assignments) != 10 {
+		t.Errorf("expected 10 assignments, got %d", len(assignments))
+	}
+	// Shorter paths should get more ants
+	if counts[0] < counts[1] {
+		t.Errorf("shortest path got fewer ants (%d) than middle path (%d)", counts[0], counts[1])
+	}
+	if counts[1] < counts[2] {
+		t.Errorf("middle path got fewer ants (%d) than longest path (%d)", counts[1], counts[2])
+	}
+}
+
+// TestDistributeZeroPaths verifies nil return for empty paths.
+func TestDistributeZeroPaths(t *testing.T) {
+	counts, assignments := DistributeAnts(nil, 5)
+	if counts != nil {
+		t.Errorf("expected nil counts, got %v", counts)
+	}
+	if assignments != nil {
+		t.Errorf("expected nil assignments, got %v", assignments)
+	}
+}
+
+// TestDistributeAntIDOrdering verifies lower IDs are assigned to shorter paths.
+func TestDistributeAntIDOrdering(t *testing.T) {
+	paths := []Path{
+		{Rooms: []string{"start", "A", "end"}},       // length 2 (short)
+		{Rooms: []string{"start", "B", "C", "end"}},  // length 3 (long)
+	}
+
+	_, assignments := DistributeAnts(paths, 5)
+
+	// All ants on path 0 should have lower IDs than ants on path 1
+	maxPath0 := 0
+	minPath1 := 999999
+	for _, a := range assignments {
+		if a.PathIndex == 0 && a.AntID > maxPath0 {
+			maxPath0 = a.AntID
+		}
+		if a.PathIndex == 1 && a.AntID < minPath1 {
+			minPath1 = a.AntID
+		}
+	}
+	if maxPath0 >= minPath1 {
+		t.Errorf("ant on short path (ID %d) should have lower ID than ant on long path (ID %d)", maxPath0, minPath1)
+	}
+}

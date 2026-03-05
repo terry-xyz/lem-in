@@ -17,7 +17,7 @@ type antState struct {
 
 // Simulate generates the turn-by-turn movement output.
 // Returns the move lines (one string per turn).
-func Simulate(paths []solver.Path, antsPerPath []int, assignments []solver.AntAssignment) []string {
+func Simulate(paths []solver.Path, assignments []solver.AntAssignment) []string {
 	if len(assignments) == 0 {
 		return nil
 	}

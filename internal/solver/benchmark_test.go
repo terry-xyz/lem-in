@@ -34,8 +34,8 @@ func BenchmarkSolver100(b *testing.B) {
 		if err != nil {
 			b.Fatalf("find paths error: %v", err)
 		}
-		antsPerPath, assignments := solver.DistributeAnts(paths, colony.AntCount)
-		_ = simulator.Simulate(paths, antsPerPath, assignments)
+		_, assignments := solver.DistributeAnts(paths, colony.AntCount)
+		_ = simulator.Simulate(paths, assignments)
 	}
 }
 
@@ -54,8 +54,8 @@ func BenchmarkSolver1000(b *testing.B) {
 		if err != nil {
 			b.Fatalf("find paths error: %v", err)
 		}
-		antsPerPath, assignments := solver.DistributeAnts(paths, colony.AntCount)
-		_ = simulator.Simulate(paths, antsPerPath, assignments)
+		_, assignments := solver.DistributeAnts(paths, colony.AntCount)
+		_ = simulator.Simulate(paths, assignments)
 	}
 }
 
@@ -72,11 +72,11 @@ func BenchmarkSimulator(b *testing.B) {
 	if err != nil {
 		b.Fatalf("find paths error: %v", err)
 	}
-	antsPerPath, assignments := solver.DistributeAnts(paths, colony.AntCount)
+	_, assignments := solver.DistributeAnts(paths, colony.AntCount)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = simulator.Simulate(paths, antsPerPath, assignments)
+		_ = simulator.Simulate(paths, assignments)
 	}
 }
 
@@ -94,8 +94,8 @@ func BenchmarkExample06(b *testing.B) {
 		if err != nil {
 			b.Fatalf("find paths error: %v", err)
 		}
-		antsPerPath, assignments := solver.DistributeAnts(paths, colony.AntCount)
-		_ = simulator.Simulate(paths, antsPerPath, assignments)
+		_, assignments := solver.DistributeAnts(paths, colony.AntCount)
+		_ = simulator.Simulate(paths, assignments)
 	}
 }
 
@@ -113,7 +113,7 @@ func BenchmarkExample07(b *testing.B) {
 		if err != nil {
 			b.Fatalf("find paths error: %v", err)
 		}
-		antsPerPath, assignments := solver.DistributeAnts(paths, colony.AntCount)
-		_ = simulator.Simulate(paths, antsPerPath, assignments)
+		_, assignments := solver.DistributeAnts(paths, colony.AntCount)
+		_ = simulator.Simulate(paths, assignments)
 	}
 }

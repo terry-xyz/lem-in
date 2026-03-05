@@ -221,3 +221,151 @@ func TestOriginalName(t *testing.T) {
 		}
 	}
 }
+
+// TestResidualEdges verifies that every forward edge has a corresponding reverse edge with Cap=0.
+func TestResidualEdges(t *testing.T) {
+	colony := makeColony(1,
+		[]parser.Room{
+			{Name: "start", X: 0, Y: 0},
+			{Name: "A", X: 1, Y: 0},
+			{Name: "end", X: 2, Y: 0},
+		},
+		"start", "end",
+		[][2]string{{"start", "A"}, {"A", "end"}},
+	)
+
+	g := BuildGraph(colony)
+
+	for from, edges := range g.Adj {
+		for i, e := range edges {
+			// Check that RevIdx is valid
+			if e.RevIdx < 0 || e.RevIdx >= len(g.Adj[e.To]) {
+				t.Fatalf("edge %d->%d has invalid RevIdx=%d (adj[%d] has %d edges)",
+					from, e.To, e.RevIdx, e.To, len(g.Adj[e.To]))
+			}
+			// Check mutual consistency
+			rev := g.Adj[e.To][e.RevIdx]
+			if rev.To != from {
+				t.Errorf("edge %d->%d RevIdx=%d: reverse edge points to %d, want %d",
+					from, e.To, e.RevIdx, rev.To, from)
+			}
+			if rev.RevIdx != i {
+				t.Errorf("edge %d->%d RevIdx=%d: reverse edge's RevIdx=%d, want %d",
+					from, e.To, e.RevIdx, rev.RevIdx, i)
+			}
+			// Forward edge Cap>0 implies reverse Cap==0 (and vice versa)
+			if e.Cap > 0 && rev.Cap != 0 {
+				t.Errorf("forward edge %d->%d has cap=%d but reverse has cap=%d (want 0)",
+					from, e.To, e.Cap, rev.Cap)
+			}
+		}
+	}
+}
+
+// TestDirectStartEndEdge verifies the edge exists when start and end are directly linked.
+func TestDirectStartEndEdge(t *testing.T) {
+	colony := makeColony(1,
+		[]parser.Room{
+			{Name: "start", X: 0, Y: 0},
+			{Name: "end", X: 1, Y: 0},
+		},
+		"start", "end",
+		[][2]string{{"start", "end"}},
+	)
+
+	g := BuildGraph(colony)
+
+	found := false
+	for _, e := range g.Adj[g.StartID] {
+		if e.To == g.EndID && e.Cap == 1 {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected direct edge start -> end with cap=1, not found")
+	}
+}
+
+// TestFanOutFromStart verifies multiple outgoing tunnels from start.
+func TestFanOutFromStart(t *testing.T) {
+	colony := makeColony(3,
+		[]parser.Room{
+			{Name: "start", X: 0, Y: 0},
+			{Name: "A", X: 1, Y: 0},
+			{Name: "B", X: 1, Y: 1},
+			{Name: "C", X: 1, Y: 2},
+			{Name: "end", X: 2, Y: 0},
+		},
+		"start", "end",
+		[][2]string{{"start", "A"}, {"start", "B"}, {"start", "C"}, {"A", "end"}, {"B", "end"}, {"C", "end"}},
+	)
+
+	g := BuildGraph(colony)
+
+	// Start should have edges to A_in, B_in, C_in (3 forward + 3 residual from reverse)
+	forwardCount := 0
+	for _, e := range g.Adj[g.StartID] {
+		if e.Cap == 1 {
+			forwardCount++
+		}
+	}
+	if forwardCount != 3 {
+		t.Errorf("start has %d forward edges, want 3", forwardCount)
+	}
+}
+
+// TestDiamondTopology verifies two independent paths through a diamond graph.
+func TestDiamondTopology(t *testing.T) {
+	colony := makeColony(2,
+		[]parser.Room{
+			{Name: "start", X: 0, Y: 0},
+			{Name: "A", X: 1, Y: 1},
+			{Name: "B", X: 1, Y: 2},
+			{Name: "end", X: 2, Y: 0},
+		},
+		"start", "end",
+		[][2]string{{"start", "A"}, {"start", "B"}, {"A", "end"}, {"B", "end"}},
+	)
+
+	g := BuildGraph(colony)
+
+	// 2 intermediate rooms * 2 (split) + 2 (start/end) = 6 nodes
+	if g.NodeCount != 6 {
+		t.Errorf("expected NodeCount=6, got %d", g.NodeCount)
+	}
+
+	// A and B should be independently split
+	if g.NameToID["A_in"] == g.NameToID["B_in"] {
+		t.Error("A_in and B_in should have different IDs")
+	}
+}
+
+// TestIDToNameConsistency verifies IDToName and NameToID are consistent.
+func TestIDToNameConsistency(t *testing.T) {
+	colony := makeColony(1,
+		[]parser.Room{
+			{Name: "start", X: 0, Y: 0},
+			{Name: "A", X: 1, Y: 0},
+			{Name: "B", X: 2, Y: 0},
+			{Name: "end", X: 3, Y: 0},
+		},
+		"start", "end",
+		[][2]string{{"start", "A"}, {"A", "B"}, {"B", "end"}},
+	)
+
+	g := BuildGraph(colony)
+
+	if len(g.IDToName) != g.NodeCount {
+		t.Errorf("IDToName length %d != NodeCount %d", len(g.IDToName), g.NodeCount)
+	}
+
+	for name, id := range g.NameToID {
+		if id < 0 || id >= g.NodeCount {
+			t.Errorf("NameToID[%q] = %d is out of range [0, %d)", name, id, g.NodeCount)
+		}
+		if g.IDToName[id] != name {
+			t.Errorf("IDToName[%d] = %q, but NameToID[%q] = %d", id, g.IDToName[id], name, id)
+		}
+	}
+}

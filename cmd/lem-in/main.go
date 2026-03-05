@@ -33,9 +33,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	antsPerPath, assignments := solver.DistributeAnts(paths, colony.AntCount)
+	_, assignments := solver.DistributeAnts(paths, colony.AntCount)
 
-	moveLines := simulator.Simulate(paths, antsPerPath, assignments)
+	moveLines := simulator.Simulate(paths, assignments)
 
 	// Print original input
 	fmt.Println(strings.Join(colony.Lines, "\n"))

@@ -88,7 +88,7 @@ func TestPropertyAllAuditExamples(t *testing.T) {
 			}
 
 			// Simulate
-			lines := simulator.Simulate(paths, antsPerPath, assignments)
+			lines := simulator.Simulate(paths, assignments)
 
 			// Property 5: Turn count within audit limits (if specified)
 			if ex.maxTurns > 0 && len(lines) > ex.maxTurns {
@@ -334,8 +334,8 @@ func TestPropertyRandomGraphs(t *testing.T) {
 			}
 
 			// Distribute and simulate
-			antsPerPath, assignments := solver.DistributeAnts(paths, tc.antCount)
-			lines := simulator.Simulate(paths, antsPerPath, assignments)
+			_, assignments := solver.DistributeAnts(paths, tc.antCount)
+			lines := simulator.Simulate(paths, assignments)
 
 			// Validate all simulation invariants
 			validateSimulation(t, lines, tc.antCount, tc.start, tc.end, paths)
@@ -369,8 +369,8 @@ func TestPropertyDeterminism(t *testing.T) {
 					t.Fatalf("run %d: find paths error: %v", run, err)
 				}
 
-				antsPerPath, assignments := solver.DistributeAnts(paths, colony.AntCount)
-				lines := simulator.Simulate(paths, antsPerPath, assignments)
+				_, assignments := solver.DistributeAnts(paths, colony.AntCount)
+				lines := simulator.Simulate(paths, assignments)
 				output := fmt.Sprintf("%v", lines)
 
 				if run == 0 {

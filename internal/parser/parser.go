@@ -22,7 +22,7 @@ func Parse(filename string) (*Colony, error) {
 	content = strings.TrimRight(content, "\n")
 
 	if content == "" {
-		return nil, fmt.Errorf("ERROR: invalid data format, invalid number of Ants")
+		return nil, fmt.Errorf("ERROR: invalid data format, invalid number of ants")
 	}
 
 	lines := strings.Split(content, "\n")
@@ -31,7 +31,7 @@ func Parse(filename string) (*Colony, error) {
 
 func parseLines(lines []string) (*Colony, error) {
 	if len(lines) == 0 {
-		return nil, fmt.Errorf("ERROR: invalid data format, invalid number of Ants")
+		return nil, fmt.Errorf("ERROR: invalid data format, invalid number of ants")
 	}
 
 	c := &Colony{
@@ -43,10 +43,10 @@ func parseLines(lines []string) (*Colony, error) {
 	antStr := strings.TrimSpace(lines[0])
 	antCount, err := strconv.Atoi(antStr)
 	if err != nil || antCount <= 0 {
-		return nil, fmt.Errorf("ERROR: invalid data format, invalid number of Ants")
+		return nil, fmt.Errorf("ERROR: invalid data format, invalid number of ants")
 	}
 	if antCount > maxAnts {
-		return nil, fmt.Errorf("ERROR: invalid data format, invalid number of Ants")
+		return nil, fmt.Errorf("ERROR: invalid data format, invalid number of ants")
 	}
 	c.AntCount = antCount
 
@@ -69,10 +69,16 @@ func parseLines(lines []string) (*Colony, error) {
 				if startFound {
 					return nil, fmt.Errorf("ERROR: invalid data format, duplicate start command")
 				}
+				if pendingStart || pendingEnd {
+					return nil, fmt.Errorf("ERROR: invalid data format, invalid command placement")
+				}
 				pendingStart = true
 			case "end":
 				if endFound {
 					return nil, fmt.Errorf("ERROR: invalid data format, duplicate end command")
+				}
+				if pendingStart || pendingEnd {
+					return nil, fmt.Errorf("ERROR: invalid data format, invalid command placement")
 				}
 				pendingEnd = true
 			default:

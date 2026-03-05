@@ -144,22 +144,22 @@ func TestParse_AntCount(t *testing.T) {
 		{
 			name:    "zero ants",
 			content: "0\n##start\nA 0 0\n##end\nB 1 1\nA-B\n",
-			wantErr: "invalid number of Ants",
+			wantErr: "invalid number of ants",
 		},
 		{
 			name:    "negative ants",
 			content: "-5\n##start\nA 0 0\n##end\nB 1 1\nA-B\n",
-			wantErr: "invalid number of Ants",
+			wantErr: "invalid number of ants",
 		},
 		{
 			name:    "non-numeric ants",
 			content: "abc\n##start\nA 0 0\n##end\nB 1 1\nA-B\n",
-			wantErr: "invalid number of Ants",
+			wantErr: "invalid number of ants",
 		},
 		{
 			name:    "empty file",
 			content: "",
-			wantErr: "invalid number of Ants",
+			wantErr: "invalid number of ants",
 		},
 	}
 
@@ -183,8 +183,8 @@ func TestParse_BadExample00(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for badexample00, got nil")
 	}
-	if !strings.Contains(err.Error(), "invalid number of Ants") {
-		t.Errorf("error = %q, want it to contain 'invalid number of Ants'", err.Error())
+	if !strings.Contains(err.Error(), "invalid number of ants") {
+		t.Errorf("error = %q, want it to contain 'invalid number of ants'", err.Error())
 	}
 }
 
@@ -324,9 +324,9 @@ func TestParse_CommandHandling(t *testing.T) {
 			wantErr: "no end room found",
 		},
 		{
-			name:    "start equals end",
+			name:    "##start followed by ##end without room",
 			content: "1\n##start\n##end\nA 0 0\nB 1 1\nA-B\n",
-			wantErr: "start and end are the same room",
+			wantErr: "invalid command placement",
 		},
 		{
 			name:    "##start not followed by room (followed by link)",
@@ -468,8 +468,8 @@ func TestParse_AntCountExceedsLimit(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for ant count exceeding limit, got nil")
 	}
-	if !strings.Contains(err.Error(), "invalid number of Ants") {
-		t.Errorf("error = %q, want it to contain 'invalid number of Ants'", err.Error())
+	if !strings.Contains(err.Error(), "invalid number of ants") {
+		t.Errorf("error = %q, want it to contain 'invalid number of ants'", err.Error())
 	}
 }
 
@@ -606,8 +606,8 @@ func TestParse_BlankFirstLine(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for blank first line, got nil")
 	}
-	if !strings.Contains(err.Error(), "invalid number of Ants") {
-		t.Errorf("error = %q, want it to contain 'invalid number of Ants'", err.Error())
+	if !strings.Contains(err.Error(), "invalid number of ants") {
+		t.Errorf("error = %q, want it to contain 'invalid number of ants'", err.Error())
 	}
 }
 
@@ -630,8 +630,51 @@ func TestParse_MaxAntsBoundary(t *testing.T) {
 	if err2 == nil {
 		t.Fatal("10M+1 ants should fail")
 	}
-	if !strings.Contains(err2.Error(), "invalid number of Ants") {
-		t.Errorf("error = %q, want it to contain 'invalid number of Ants'", err2.Error())
+	if !strings.Contains(err2.Error(), "invalid number of ants") {
+		t.Errorf("error = %q, want it to contain 'invalid number of ants'", err2.Error())
+	}
+}
+
+// TestParse_StartEndStacking verifies ##start followed by ##end without room errors.
+func TestParse_StartEndStacking(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{
+			name:    "##start then ##end without room",
+			content: "1\n##start\n##end\nA 0 0\nB 1 1\nA-B\n",
+			wantErr: "invalid command placement",
+		},
+		{
+			name:    "##end then ##start without room",
+			content: "1\n##end\n##start\nA 0 0\nB 1 1\nA-B\n",
+			wantErr: "invalid command placement",
+		},
+		{
+			name:    "##start then ##start without room",
+			content: "1\n##start\n##start\nA 0 0\n##end\nB 1 1\nA-B\n",
+			wantErr: "invalid command placement",
+		},
+		{
+			name:    "##end then ##end without room",
+			content: "1\n##end\n##end\nA 0 0\n##start\nB 1 1\nA-B\n",
+			wantErr: "invalid command placement",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path := writeTemp(t, tc.content)
+			_, err := Parse(path)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("error = %q, want it to contain %q", err.Error(), tc.wantErr)
+			}
+		})
 	}
 }
 

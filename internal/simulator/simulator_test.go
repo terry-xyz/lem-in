@@ -12,14 +12,13 @@ import (
 
 func TestSimulate_SinglePath(t *testing.T) {
 	paths := []solver.Path{{Rooms: []string{"start", "A", "end"}}}
-	antsPerPath := []int{3}
 	assignments := []solver.AntAssignment{
 		{AntID: 1, PathIndex: 0},
 		{AntID: 2, PathIndex: 0},
 		{AntID: 3, PathIndex: 0},
 	}
 
-	lines := Simulate(paths, antsPerPath, assignments)
+	lines := Simulate(paths, assignments)
 
 	if len(lines) != 4 {
 		t.Fatalf("expected 4 turns, got %d: %v", len(lines), lines)
@@ -34,26 +33,24 @@ func TestSimulate_TwoPaths(t *testing.T) {
 		{Rooms: []string{"start", "end"}},      // length 1
 		{Rooms: []string{"start", "A", "end"}}, // length 2
 	}
-	antsPerPath := []int{2, 1}
 	assignments := []solver.AntAssignment{
 		{AntID: 1, PathIndex: 0},
 		{AntID: 2, PathIndex: 0},
 		{AntID: 3, PathIndex: 1},
 	}
 
-	lines := Simulate(paths, antsPerPath, assignments)
+	lines := Simulate(paths, assignments)
 	validateOutput(t, lines, 3, "end", paths)
 }
 
 func TestSimulate_OutputFormat(t *testing.T) {
 	paths := []solver.Path{{Rooms: []string{"start", "mid", "end"}}}
-	antsPerPath := []int{2}
 	assignments := []solver.AntAssignment{
 		{AntID: 1, PathIndex: 0},
 		{AntID: 2, PathIndex: 0},
 	}
 
-	lines := Simulate(paths, antsPerPath, assignments)
+	lines := Simulate(paths, assignments)
 
 	moveRe := regexp.MustCompile(`^L\d+-\S+$`)
 	for _, line := range lines {
@@ -71,7 +68,6 @@ func TestSimulate_AntIDOrdering(t *testing.T) {
 		{Rooms: []string{"start", "A", "end"}},
 		{Rooms: []string{"start", "B", "end"}},
 	}
-	antsPerPath := []int{2, 2}
 	assignments := []solver.AntAssignment{
 		{AntID: 1, PathIndex: 0},
 		{AntID: 2, PathIndex: 0},
@@ -79,7 +75,7 @@ func TestSimulate_AntIDOrdering(t *testing.T) {
 		{AntID: 4, PathIndex: 1},
 	}
 
-	lines := Simulate(paths, antsPerPath, assignments)
+	lines := Simulate(paths, assignments)
 
 	for _, line := range lines {
 		tokens := strings.Fields(line)
@@ -184,14 +180,13 @@ func validateOutput(t *testing.T, lines []string, totalAnts int, endRoom string,
 // TestSimulate_NoTrailingEmptyLines verifies output has no trailing blank lines.
 func TestSimulate_NoTrailingEmptyLines(t *testing.T) {
 	paths := []solver.Path{{Rooms: []string{"start", "A", "end"}}}
-	antsPerPath := []int{3}
 	assignments := []solver.AntAssignment{
 		{AntID: 1, PathIndex: 0},
 		{AntID: 2, PathIndex: 0},
 		{AntID: 3, PathIndex: 0},
 	}
 
-	lines := Simulate(paths, antsPerPath, assignments)
+	lines := Simulate(paths, assignments)
 	for i, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			t.Errorf("turn %d is blank", i+1)
@@ -205,14 +200,13 @@ func TestSimulate_AntFollowsPathSequence(t *testing.T) {
 		{Rooms: []string{"start", "A", "B", "end"}},
 		{Rooms: []string{"start", "C", "end"}},
 	}
-	antsPerPath := []int{2, 1}
 	assignments := []solver.AntAssignment{
 		{AntID: 1, PathIndex: 0},
 		{AntID: 2, PathIndex: 0},
 		{AntID: 3, PathIndex: 1},
 	}
 
-	lines := Simulate(paths, antsPerPath, assignments)
+	lines := Simulate(paths, assignments)
 
 	// Track per-ant room visit sequence
 	antPath := make(map[int][]string)
@@ -258,14 +252,13 @@ func TestSimulate_AntFollowsPathSequence(t *testing.T) {
 // TestSimulate_AntStopsAfterEnd verifies that ants that reached end don't appear again.
 func TestSimulate_AntStopsAfterEnd(t *testing.T) {
 	paths := []solver.Path{{Rooms: []string{"start", "A", "end"}}}
-	antsPerPath := []int{3}
 	assignments := []solver.AntAssignment{
 		{AntID: 1, PathIndex: 0},
 		{AntID: 2, PathIndex: 0},
 		{AntID: 3, PathIndex: 0},
 	}
 
-	lines := Simulate(paths, antsPerPath, assignments)
+	lines := Simulate(paths, assignments)
 
 	arrived := make(map[int]int) // antID -> turn they arrived at end
 	for turnIdx, line := range lines {
@@ -291,7 +284,6 @@ func TestSimulate_LowerIDArrivesFirst(t *testing.T) {
 		{Rooms: []string{"start", "A", "B", "end"}},
 		{Rooms: []string{"start", "C", "end"}},
 	}
-	antsPerPath := []int{3, 2}
 	assignments := []solver.AntAssignment{
 		{AntID: 1, PathIndex: 0},
 		{AntID: 2, PathIndex: 0},
@@ -300,7 +292,7 @@ func TestSimulate_LowerIDArrivesFirst(t *testing.T) {
 		{AntID: 5, PathIndex: 1},
 	}
 
-	lines := Simulate(paths, antsPerPath, assignments)
+	lines := Simulate(paths, assignments)
 
 	// Record arrival turns per ant
 	arrivalTurn := make(map[int]int)
@@ -336,7 +328,6 @@ func TestSimulate_SingleSpaceSeparator(t *testing.T) {
 		{Rooms: []string{"start", "A", "end"}},
 		{Rooms: []string{"start", "B", "end"}},
 	}
-	antsPerPath := []int{2, 2}
 	assignments := []solver.AntAssignment{
 		{AntID: 1, PathIndex: 0},
 		{AntID: 2, PathIndex: 0},
@@ -344,7 +335,7 @@ func TestSimulate_SingleSpaceSeparator(t *testing.T) {
 		{AntID: 4, PathIndex: 1},
 	}
 
-	lines := Simulate(paths, antsPerPath, assignments)
+	lines := Simulate(paths, assignments)
 
 	for _, line := range lines {
 		if strings.Contains(line, "  ") {
@@ -359,13 +350,12 @@ func TestSimulate_SingleSpaceSeparator(t *testing.T) {
 // TestSimulate_OnlyMovingAntsAppear verifies stationary ants don't appear in output.
 func TestSimulate_OnlyMovingAntsAppear(t *testing.T) {
 	paths := []solver.Path{{Rooms: []string{"start", "A", "end"}}}
-	antsPerPath := []int{2}
 	assignments := []solver.AntAssignment{
 		{AntID: 1, PathIndex: 0},
 		{AntID: 2, PathIndex: 0},
 	}
 
-	lines := Simulate(paths, antsPerPath, assignments)
+	lines := Simulate(paths, assignments)
 
 	// Each ant should appear in exactly 2 lines (moving to A, then to end)
 	antAppearances := make(map[int]int)
@@ -391,14 +381,12 @@ func TestSimulate_TurnCountMatchesFormula(t *testing.T) {
 	tests := []struct {
 		name          string
 		paths         []solver.Path
-		antsPerPath   []int
 		assignments   []solver.AntAssignment
 		expectedTurns int
 	}{
 		{
-			name:        "single path length 2",
-			paths:       []solver.Path{{Rooms: []string{"start", "A", "end"}}},
-			antsPerPath: []int{3},
+			name:  "single path length 2",
+			paths: []solver.Path{{Rooms: []string{"start", "A", "end"}}},
 			assignments: []solver.AntAssignment{
 				{AntID: 1, PathIndex: 0},
 				{AntID: 2, PathIndex: 0},
@@ -412,7 +400,6 @@ func TestSimulate_TurnCountMatchesFormula(t *testing.T) {
 				{Rooms: []string{"start", "end"}},
 				{Rooms: []string{"start", "end"}},
 			},
-			antsPerPath: []int{2, 2},
 			assignments: []solver.AntAssignment{
 				{AntID: 1, PathIndex: 0},
 				{AntID: 2, PathIndex: 0},
@@ -425,7 +412,7 @@ func TestSimulate_TurnCountMatchesFormula(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			lines := Simulate(tc.paths, tc.antsPerPath, tc.assignments)
+			lines := Simulate(tc.paths, tc.assignments)
 			if len(lines) != tc.expectedTurns {
 				t.Errorf("got %d turns, want %d", len(lines), tc.expectedTurns)
 			}
@@ -435,10 +422,84 @@ func TestSimulate_TurnCountMatchesFormula(t *testing.T) {
 
 // TestSimulate_EmptyAssignments verifies nil return for empty input.
 func TestSimulate_EmptyAssignments(t *testing.T) {
-	lines := Simulate(nil, nil, nil)
+	lines := Simulate(nil, nil)
 	if lines != nil {
 		t.Errorf("expected nil, got %v", lines)
 	}
+}
+
+// TestSimulate_SingleAnt verifies N=1 on a single path.
+func TestSimulate_SingleAnt(t *testing.T) {
+	paths := []solver.Path{{Rooms: []string{"start", "A", "end"}}}
+	assignments := []solver.AntAssignment{
+		{AntID: 1, PathIndex: 0},
+	}
+
+	lines := Simulate(paths, assignments)
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 turns for single ant on length-2 path, got %d", len(lines))
+	}
+	validateOutput(t, lines, 1, "end", paths)
+}
+
+// TestSimulate_ThreePaths verifies interleaving across 3 paths.
+func TestSimulate_ThreePaths(t *testing.T) {
+	paths := []solver.Path{
+		{Rooms: []string{"start", "A", "end"}},
+		{Rooms: []string{"start", "B", "end"}},
+		{Rooms: []string{"start", "C", "end"}},
+	}
+	assignments := []solver.AntAssignment{
+		{AntID: 1, PathIndex: 0},
+		{AntID: 2, PathIndex: 0},
+		{AntID: 3, PathIndex: 1},
+		{AntID: 4, PathIndex: 1},
+		{AntID: 5, PathIndex: 2},
+		{AntID: 6, PathIndex: 2},
+	}
+
+	lines := Simulate(paths, assignments)
+	validateOutput(t, lines, 6, "end", paths)
+}
+
+// TestSimulate_DirectStartEnd verifies single direct start->end path with multiple ants.
+func TestSimulate_DirectStartEnd(t *testing.T) {
+	paths := []solver.Path{{Rooms: []string{"start", "end"}}}
+	assignments := []solver.AntAssignment{
+		{AntID: 1, PathIndex: 0},
+		{AntID: 2, PathIndex: 0},
+		{AntID: 3, PathIndex: 0},
+	}
+
+	lines := Simulate(paths, assignments)
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 turns for 3 ants on direct path, got %d", len(lines))
+	}
+	// Each turn should have exactly one ant move
+	for i, line := range lines {
+		tokens := strings.Fields(line)
+		if len(tokens) != 1 {
+			t.Errorf("turn %d: expected 1 move, got %d: %q", i+1, len(tokens), line)
+		}
+	}
+}
+
+// TestSimulate_LowerIDArrivesFirst_WithInvariants adds invariant checks.
+func TestSimulate_LowerIDArrivesFirst_WithInvariants(t *testing.T) {
+	paths := []solver.Path{
+		{Rooms: []string{"start", "A", "B", "end"}},
+		{Rooms: []string{"start", "C", "end"}},
+	}
+	assignments := []solver.AntAssignment{
+		{AntID: 1, PathIndex: 0},
+		{AntID: 2, PathIndex: 0},
+		{AntID: 3, PathIndex: 0},
+		{AntID: 4, PathIndex: 1},
+		{AntID: 5, PathIndex: 1},
+	}
+
+	lines := Simulate(paths, assignments)
+	validateOutput(t, lines, 5, "end", paths)
 }
 
 // normalizeTunnel returns a canonical string for a tunnel between two rooms.
