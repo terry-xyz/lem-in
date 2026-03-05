@@ -322,24 +322,30 @@ func drawLine(cv *canvas, x0, y0, x1, y1 int, ch rune, fg string) {
 	}
 }
 
-// lineChar picks a directional character for tunnel segments.
+// lineChar picks a Unicode box-drawing character for tunnel segments.
 func lineChar(x0, y0, x1, y1 int, fallback rune) rune {
 	dx := abs(x1 - x0)
 	dy := abs(y1 - y0)
 	if dx == 0 {
-		return '|' // vertical
+		return '│' // U+2502 vertical
 	}
 	if dy == 0 {
-		return '-' // horizontal -- use ASCII dash (safe everywhere)
+		return '─' // U+2500 horizontal
 	}
-	// Diagonal
+	// Nearly horizontal or nearly vertical
 	if dx > dy*2 {
-		return '-'
+		return '─'
 	}
 	if dy > dx*2 {
-		return '|'
+		return '│'
 	}
-	return fallback
+	// Diagonal: determine direction
+	goingRight := x1 > x0
+	goingDown := y1 > y0
+	if goingRight == goingDown {
+		return '╲' // U+2572 upper-left to lower-right
+	}
+	return '╱' // U+2571 upper-right to lower-left
 }
 
 func abs(x int) int {
@@ -474,7 +480,7 @@ func (rn *renderer) render(sb *screenBuf, ants *antState, pb *playback) {
 		posA, okA := rn.positions[link[0]]
 		posB, okB := rn.positions[link[1]]
 		if okA && okB {
-			drawLine(cv, posA.screenX, posA.screenY, posB.screenX, posB.screenY, '.', fgDkGreen)
+			drawLine(cv, posA.screenX, posA.screenY, posB.screenX, posB.screenY, '·', fgDkGreen)
 		}
 	}
 
@@ -658,7 +664,7 @@ func (rn *renderer) renderPanel(sb *screenBuf, pb *playback) {
 	sb.write(fgDimWhite)
 	sb.write("=Ant  ")
 	sb.write(fgDkGreen)
-	sb.write(".|---")
+	sb.write("─│╱╲")
 	sb.write(fgDimWhite)
 	sb.write("=Tunnel")
 	sb.write(fgReset)
@@ -783,12 +789,60 @@ func showLoading() {
 	fmt.Print(fgReset)
 	fmt.Print(moveTo(3, 2))
 	fmt.Print(fgDimWhite)
-	fmt.Print("Reading solver output from stdin...")
+	fmt.Print("Receiving data...")
 	fmt.Print(fgReset)
 	fmt.Print(moveTo(4, 2))
 	fmt.Print(fgDimWhite)
 	fmt.Print("(pipe lem-in output: ./lem-in file | ./visualizer-tui)")
 	fmt.Print(fgReset)
+}
+
+// showCenteredError displays an error message centered in the terminal and
+// waits for the user to press any key before returning.
+func showCenteredError(msg string) {
+	cols, rows := getTerminalSize()
+
+	fmt.Print(enableAltBuf)
+	fmt.Print(hideCursor)
+	fmt.Print(clearScreen)
+
+	// Center vertically and horizontally
+	row := rows / 2
+	col := (cols - len(msg)) / 2
+	if col < 1 {
+		col = 1
+	}
+
+	fmt.Print(moveTo(row, col))
+	fmt.Print(fgRed)
+	fmt.Print(msg)
+	fmt.Print(fgReset)
+
+	// Hint below
+	hint := "Press any key to exit"
+	hintCol := (cols - len(hint)) / 2
+	if hintCol < 1 {
+		hintCol = 1
+	}
+	fmt.Print(moveTo(row+2, hintCol))
+	fmt.Print(fgDimWhite)
+	fmt.Print(hint)
+	fmt.Print(fgReset)
+
+	// Wait for a keypress
+	enableRawMode()
+	tty, _ := openTTY()
+	if tty != nil {
+		buf := make([]byte, 1)
+		_, _ = tty.Read(buf)
+		if tty != os.Stdin {
+			tty.Close()
+		}
+	}
+	disableRawMode()
+
+	fmt.Print(showCursor)
+	fmt.Print(disableAltBuf)
 }
 
 // ---------------------------------------------------------------------------
@@ -819,9 +873,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Handle error output from solver
+	// Handle error output from solver: display centered in terminal
 	if parsed.Error != "" {
-		fmt.Fprintf(os.Stderr, "%s\n", parsed.Error)
+		showCenteredError(parsed.Error)
 		os.Exit(1)
 	}
 

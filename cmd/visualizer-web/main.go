@@ -192,6 +192,15 @@ canvas{display:block;}
   border:1px solid rgba(100,100,140,0.4);border-radius:6px;font-size:0.85rem;
   pointer-events:none;display:none;white-space:nowrap;
   box-shadow:0 2px 15px rgba(0,0,0,0.4);}
+#ant-list{position:absolute;top:100px;left:20px;max-height:calc(100% - 200px);width:200px;
+  background:rgba(15,15,25,0.85);border:1px solid rgba(100,100,140,0.3);
+  border-radius:10px;padding:12px 14px;pointer-events:all;overflow-y:auto;
+  backdrop-filter:blur(10px);box-shadow:0 4px 30px rgba(0,0,0,0.5);}
+#ant-list .title{font-size:0.85rem;font-weight:600;color:#aabbdd;margin-bottom:6px;}
+#ant-list-body{font-size:0.75rem;line-height:1.6;color:#999;}
+#ant-list-body .ant-row{display:flex;justify-content:space-between;gap:6px;}
+#ant-list-body .ant-id{font-weight:600;}
+#ant-list-body .ant-room{color:#777;text-align:right;overflow:hidden;text-overflow:ellipsis;}
 #minimap{position:absolute;bottom:80px;right:20px;width:180px;height:180px;
   background:rgba(15,15,25,0.85);border:1px solid rgba(100,100,140,0.3);
   border-radius:10px;pointer-events:all;overflow:hidden;
@@ -221,6 +230,7 @@ canvas{display:block;}
     </div>
   </div>
   <div id="hover-label"></div>
+  <div id="ant-list"><div class="title">Ants</div><div id="ant-list-body"></div></div>
   <div id="minimap"><canvas id="minimap-canvas" width="360" height="360"></canvas></div>
 </div>
 
@@ -281,8 +291,17 @@ controls.maxDistance = 200;
 const ambientLight = new THREE.AmbientLight(0x1a1a2e, 0.6);
 scene.add(ambientLight);
 
-const hemiLight = new THREE.HemisphereLight(0x2244aa, 0x332211, 0.3);
-scene.add(hemiLight);
+const dirLight = new THREE.DirectionalLight(0xccccdd, 0.5);
+dirLight.position.set(10, 30, 10);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(1024, 1024);
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far = 100;
+dirLight.shadow.camera.left = -40;
+dirLight.shadow.camera.right = 40;
+dirLight.shadow.camera.top = 40;
+dirLight.shadow.camera.bottom = -40;
+scene.add(dirLight);
 
 // ---------- BUILD ROOM LOOKUP ----------
 const roomMap = {};
@@ -322,6 +341,8 @@ rooms.forEach(r => {
   });
   const mesh = new THREE.Mesh(geom, mat);
   mesh.position.set(px, py, pz);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
   mesh.userData = { roomName: r.name, isStart: r.isStart, isEnd: r.isEnd, baseColor: color, baseEmissive: emissive };
   roomGroup.add(mesh);
   roomMeshes.push(mesh);
@@ -365,6 +386,8 @@ links.forEach(l => {
     roughness: 0.7, metalness: 0.2, transparent: true, opacity: 0.7
   });
   const tube = new THREE.Mesh(tubeGeom, tubeMat);
+  tube.castShadow = true;
+  tube.receiveShadow = true;
   tube.userData = { from: l.from, to: l.to };
   tunnelGroup.add(tube);
   linkObjects.push(tube);
@@ -589,18 +612,50 @@ renderer.domElement.addEventListener('mousemove', (e) => {
   }
 });
 
-function highlightRoom(roomName) {
-  // Highlight the room
-  roomMeshes.forEach(m => {
-    if (m.userData.roomName === roomName) {
-      m.material.emissiveIntensity = 1.5;
-      m.scale.setScalar(1.3);
+// Find all paths passing through a given room
+function pathsThroughRoom(roomName) {
+  const result = new Set();
+  Object.entries(antPaths).forEach(([id, path]) => {
+    if (path.includes(roomName)) {
+      path.forEach(r => result.add(r));
     }
   });
-  // Highlight connected tunnels
+  return result;
+}
+
+// Collect tunnel keys on paths through a room
+function tunnelsOnPathsThrough(roomName) {
+  const tunnelKeys = new Set();
+  Object.values(antPaths).forEach(path => {
+    if (!path.includes(roomName)) return;
+    for (let i = 0; i < path.length - 1; i++) {
+      tunnelKeys.add(path[i] + '-' + path[i + 1]);
+      tunnelKeys.add(path[i + 1] + '-' + path[i]);
+    }
+  });
+  return tunnelKeys;
+}
+
+let highlightedTunnelKeys = new Set();
+let isPulsing = false;
+
+function highlightRoom(roomName) {
+  const pathRooms = pathsThroughRoom(roomName);
+  highlightedTunnelKeys = tunnelsOnPathsThrough(roomName);
+  isPulsing = true;
+
+  // Highlight rooms on the paths
+  roomMeshes.forEach(m => {
+    if (pathRooms.has(m.userData.roomName)) {
+      m.material.emissiveIntensity = 1.5;
+      m.scale.setScalar(m.userData.roomName === roomName ? 1.4 : 1.2);
+    }
+  });
+  // Highlight full-path tunnels
   linkObjects.forEach(tube => {
-    if (tube.userData.from === roomName || tube.userData.to === roomName) {
-      tube.material.emissiveIntensity = 0.8;
+    const key = tube.userData.from + '-' + tube.userData.to;
+    if (highlightedTunnelKeys.has(key)) {
+      tube.material.emissiveIntensity = 0.9;
       tube.material.opacity = 1.0;
       tube.material.color.set(0xaa8855);
     }
@@ -608,13 +663,15 @@ function highlightRoom(roomName) {
 }
 
 function resetHighlights() {
+  isPulsing = false;
+  highlightedTunnelKeys.clear();
   roomMeshes.forEach(m => {
     m.material.emissiveIntensity = 0.6;
     m.scale.setScalar(1.0);
   });
   linkObjects.forEach(tube => {
-    tube.material.emissiveIntensity = 0.2;
-    tube.material.opacity = 0.7;
+    tube.material.emissiveIntensity = tube.userData.baseEmissiveIntensity || 0.2;
+    tube.material.opacity = tube.userData.baseOpacity || 0.7;
     tube.material.color.set(0x554433);
   });
 }
@@ -630,6 +687,75 @@ const turnValue = document.getElementById('turn-value');
 const infoDetail = document.getElementById('info-detail');
 
 infoDetail.textContent = SIM_DATA.antCount + ' ants | ' + rooms.length + ' rooms | ' + links.length + ' tunnels | ' + turns.length + ' turns';
+
+// ---------- ANT LIST ----------
+const antListBody = document.getElementById('ant-list-body');
+
+// Pre-compute which path each ant takes (sequence of rooms)
+const antPaths = {};
+{
+  const tempPos = {};
+  for (let t = 0; t < turns.length; t++) {
+    for (const m of turns[t]) {
+      if (!antPaths[m.antId]) antPaths[m.antId] = [SIM_DATA.startName];
+      antPaths[m.antId].push(m.room);
+      tempPos[m.antId] = m.room;
+    }
+  }
+}
+
+function updateAntList() {
+  // Build current room for each ant based on completed turns
+  const antPos = {};
+  const completedTurns = animComplete ? turns.length : currentTurn;
+  for (let i = 1; i <= SIM_DATA.antCount; i++) antPos[i] = SIM_DATA.startName;
+  for (let t = 0; t < completedTurns; t++) {
+    for (const m of turns[t]) antPos[m.antId] = m.room;
+  }
+
+  let html = '';
+  for (let i = 1; i <= Math.min(SIM_DATA.antCount, 50); i++) {
+    const path = antPaths[i];
+    const pathStr = path ? path.join(' > ') : SIM_DATA.startName;
+    const room = antPos[i] || SIM_DATA.startName;
+    const col = getAntColor(i);
+    html += '<div class="ant-row"><span class="ant-id" style="color:#' + col.getHexString() + '">L' + i + '</span><span class="ant-room" title="Path: ' + pathStr + '">' + room + '</span></div>';
+  }
+  if (SIM_DATA.antCount > 50) html += '<div style="color:#666;text-align:center;margin-top:4px;">...and ' + (SIM_DATA.antCount - 50) + ' more</div>';
+  antListBody.innerHTML = html;
+}
+updateAntList();
+
+// ---------- TUNNEL TRAFFIC (brightness by usage) ----------
+const tunnelTraffic = {};
+{
+  const antPos = {};
+  for (let t = 0; t < turns.length; t++) {
+    for (const m of turns[t]) {
+      const from = antPos[m.antId] || SIM_DATA.startName;
+      const key1 = from + '-' + m.room;
+      const key2 = m.room + '-' + from;
+      tunnelTraffic[key1] = (tunnelTraffic[key1] || 0) + 1;
+      tunnelTraffic[key2] = (tunnelTraffic[key2] || 0) + 1;
+      antPos[m.antId] = m.room;
+    }
+  }
+}
+
+// Find max traffic for normalization
+let maxTraffic = 1;
+Object.values(tunnelTraffic).forEach(v => { if (v > maxTraffic) maxTraffic = v; });
+
+// Apply traffic-based brightness to tunnels
+linkObjects.forEach(tube => {
+  const key = tube.userData.from + '-' + tube.userData.to;
+  const traffic = tunnelTraffic[key] || 0;
+  const intensity = 0.15 + (traffic / maxTraffic) * 0.6;
+  tube.material.emissiveIntensity = intensity;
+  tube.userData.baseEmissiveIntensity = intensity;
+  tube.userData.baseOpacity = 0.5 + (traffic / maxTraffic) * 0.5;
+  tube.material.opacity = tube.userData.baseOpacity;
+});
 
 btnPlay.addEventListener('click', () => {
   isPlaying = !isPlaying;
@@ -829,6 +955,20 @@ function animate() {
       }
     });
   }
+
+  // Pulse highlighted paths
+  if (isPulsing) {
+    const pulse = 0.7 + Math.sin(Date.now() * 0.005) * 0.3;
+    linkObjects.forEach(tube => {
+      const key = tube.userData.from + '-' + tube.userData.to;
+      if (highlightedTunnelKeys.has(key)) {
+        tube.material.emissiveIntensity = 0.6 + pulse * 0.4;
+      }
+    });
+  }
+
+  // Update ant list periodically
+  if (Math.floor(Date.now() / 500) !== Math.floor((Date.now() - 16) / 500)) updateAntList();
 
   // Update turn display
   const displayTurn = animComplete ? turns.length : currentTurn + (turns.length > 0 ? 1 : 0);
