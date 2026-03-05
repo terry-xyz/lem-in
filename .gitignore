@@ -1,4 +1,8 @@
 IMPLEMENTATION_PLAN.md
+*.exe
+bin/
+coverage.out
+coverage.html
 PROMPT_build.md
 PROMPT_plan.md
 PROMPT_specs.md

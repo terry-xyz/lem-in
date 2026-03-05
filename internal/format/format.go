@@ -33,7 +33,8 @@ type ParsedRoom struct {
 
 // ParseOutput parses lem-in stdout into structured data.
 func ParseOutput(output string) (*ParsedOutput, error) {
-	output = strings.TrimRight(output, "\n\r")
+	output = strings.ReplaceAll(output, "\r\n", "\n")
+	output = strings.TrimRight(output, "\n")
 	if strings.HasPrefix(output, "ERROR:") {
 		return &ParsedOutput{Error: output}, nil
 	}
