@@ -96,12 +96,15 @@ func TestIntegration(t *testing.T) {
 				t.Errorf("turn count %d exceeds max %d", turnCount, tt.maxTurns)
 			}
 
+			// Parse colony info for invariant validation
+			colony := parseColonyFromFileContent(origLines)
+
 			// Parse ant count from first line
 			firstLine := strings.TrimSpace(strings.Split(origLines, "\n")[0])
 			antCount, _ := strconv.Atoi(firstLine)
 
-			// Validate all ants reach end
-			validateMoves(t, moveLines, antCount)
+			// Validate all spec invariants on the move output
+			validateMoves(t, moveLines, antCount, colony)
 
 			fmt.Printf("  %s: %d turns (limit %d)\n", tt.name, turnCount, tt.maxTurns)
 		})
@@ -129,17 +132,96 @@ func TestNonexistentFile(t *testing.T) {
 	}
 }
 
-// validateMoves checks all invariants on move output.
-func validateMoves(t *testing.T, lines []string, totalAnts int) {
+// colonyInfo holds colony topology for move validation.
+type colonyInfo struct {
+	startRoom string
+	endRoom   string
+	links     map[string]bool // normalized "min\x00max" for undirected tunnels
+}
+
+// parseColonyFromFileContent extracts start/end rooms and links from the input file content.
+func parseColonyFromFileContent(content string) colonyInfo {
+	ci := colonyInfo{
+		links: make(map[string]bool),
+	}
+	lines := strings.Split(content, "\n")
+	pendingStart := false
+	pendingEnd := false
+
+	for i := 1; i < len(lines); i++ {
+		line := lines[i]
+		if strings.HasPrefix(line, "##start") {
+			pendingStart = true
+			continue
+		}
+		if strings.HasPrefix(line, "##end") {
+			pendingEnd = true
+			continue
+		}
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) == 3 {
+			_, err1 := strconv.Atoi(fields[1])
+			_, err2 := strconv.Atoi(fields[2])
+			if err1 == nil && err2 == nil {
+				if pendingStart {
+					ci.startRoom = fields[0]
+					pendingStart = false
+				}
+				if pendingEnd {
+					ci.endRoom = fields[0]
+					pendingEnd = false
+				}
+				continue
+			}
+		}
+
+		dashIdx := strings.Index(line, "-")
+		if dashIdx > 0 && dashIdx < len(line)-1 && !strings.Contains(line, " ") {
+			a := line[:dashIdx]
+			b := line[dashIdx+1:]
+			ci.links[normalizeTunnel(a, b)] = true
+		}
+	}
+
+	return ci
+}
+
+func normalizeTunnel(a, b string) string {
+	if a > b {
+		a, b = b, a
+	}
+	return a + "\x00" + b
+}
+
+// validateMoves checks all spec invariants on move output:
+// - Move format is Lx-y with ascending ant IDs per turn
+// - Each ant moves at most once per turn
+// - Each move uses an existing tunnel
+// - No tunnel is used more than once per turn
+// - No intermediate room holds more than one ant after any turn
+// - All N ants reach ##end by the final turn
+func validateMoves(t *testing.T, lines []string, totalAnts int, colony colonyInfo) {
 	t.Helper()
 
 	moveRe := regexp.MustCompile(`^L(\d+)-(\S+)$`)
-	arrivedAtEnd := make(map[int]bool)
-	antRoom := make(map[int]string) // current room of each ant
+
+	// All ants start in the start room
+	antRoom := make(map[int]string, totalAnts)
+	for i := 1; i <= totalAnts; i++ {
+		antRoom[i] = colony.startRoom
+	}
 
 	for turnIdx, line := range lines {
 		tokens := strings.Fields(line)
-		roomOccupants := make(map[string][]int) // room -> ant IDs moving there this turn
+		movedThisTurn := make(map[int]bool)
+		tunnelsUsed := make(map[string]bool)
 		lastID := 0
 
 		for _, tok := range tokens {
@@ -149,37 +231,60 @@ func validateMoves(t *testing.T, lines []string, totalAnts int) {
 				continue
 			}
 			antID, _ := strconv.Atoi(matches[1])
-			room := matches[2]
+			dest := matches[2]
 
-			// Check ascending ant ID order
 			if antID <= lastID {
 				t.Errorf("turn %d: ant IDs not ascending (%d after %d)", turnIdx+1, antID, lastID)
 			}
 			lastID = antID
 
-			antRoom[antID] = room
-			roomOccupants[room] = append(roomOccupants[room], antID)
+			if antID < 1 || antID > totalAnts {
+				t.Errorf("turn %d: unexpected ant ID: %d", turnIdx+1, antID)
+				continue
+			}
+
+			if movedThisTurn[antID] {
+				t.Errorf("turn %d: ant %d moved twice", turnIdx+1, antID)
+			}
+			movedThisTurn[antID] = true
+
+			if antRoom[antID] == colony.endRoom {
+				t.Errorf("turn %d: ant %d already at end, should not move", turnIdx+1, antID)
+			}
+
+			src := antRoom[antID]
+			tunnelKey := normalizeTunnel(src, dest)
+			if !colony.links[tunnelKey] {
+				t.Errorf("turn %d: ant %d moved %s->%s but no tunnel exists", turnIdx+1, antID, src, dest)
+			}
+
+			if tunnelsUsed[tunnelKey] {
+				t.Errorf("turn %d: tunnel %s-%s used more than once", turnIdx+1, src, dest)
+			}
+			tunnelsUsed[tunnelKey] = true
+
+			antRoom[antID] = dest
 		}
 
-		// Check room capacity (intermediate rooms: max 1 ant)
-		// We don't know which rooms are intermediate vs start/end from just the output,
-		// but start/end are special. Since ants moving TO end is valid for multiple,
-		// we only need to check that the output format is correct.
-		// The solver guarantees vertex-disjoint paths, so intermediate room conflicts
-		// can't happen. But let's still verify.
-	}
-
-	// Check all ants appeared
-	for antID := range antRoom {
-		if antID < 1 || antID > totalAnts {
-			t.Errorf("unexpected ant ID: %d", antID)
+		// Check intermediate room capacity after all moves this turn
+		roomCount := make(map[string]int)
+		for _, room := range antRoom {
+			roomCount[room]++
+		}
+		for room, count := range roomCount {
+			if room == colony.startRoom || room == colony.endRoom {
+				continue
+			}
+			if count > 1 {
+				t.Errorf("turn %d: intermediate room %q has %d ants (max 1)", turnIdx+1, room, count)
+			}
 		}
 	}
-	for id := range antRoom {
-		arrivedAtEnd[id] = true
-	}
 
-	if len(antRoom) != totalAnts {
-		t.Errorf("expected %d ants to move, got %d", totalAnts, len(antRoom))
+	// All ants must have reached the end room
+	for antID := 1; antID <= totalAnts; antID++ {
+		if antRoom[antID] != colony.endRoom {
+			t.Errorf("ant %d did not reach end room (last position: %s)", antID, antRoom[antID])
+		}
 	}
 }
