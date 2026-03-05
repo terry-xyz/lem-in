@@ -529,6 +529,112 @@ func TestParse_AllErrorsPrefixed(t *testing.T) {
 	}
 }
 
+// ---------- 12. Additional edge case coverage ----------
+
+func TestParse_RoomNameWithSpace(t *testing.T) {
+	// "my room 0 0" splits into 4 fields, so parseRoom rejects it as invalid data
+	content := "1\n##start\nmy room 0 0\n##end\nB 1 1\nmy room-B\n"
+	path := writeTemp(t, content)
+	_, err := Parse(path)
+	if err == nil {
+		t.Fatal("expected error for room name with embedded space, got nil")
+	}
+	if !strings.Contains(err.Error(), "ERROR:") {
+		t.Errorf("error = %q, want ERROR: prefix", err.Error())
+	}
+}
+
+func TestParse_BlankLinesHandledGracefully(t *testing.T) {
+	// Blank lines interspersed between rooms and links should be ignored
+	content := "1\n\n##start\nA 0 0\n\n##end\nB 1 1\n\nA-B\n"
+	path := writeTemp(t, content)
+	c, err := Parse(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.AntCount != 1 {
+		t.Errorf("AntCount = %d, want 1", c.AntCount)
+	}
+	if c.StartName != "A" {
+		t.Errorf("StartName = %q, want %q", c.StartName, "A")
+	}
+	if c.EndName != "B" {
+		t.Errorf("EndName = %q, want %q", c.EndName, "B")
+	}
+	if len(c.Links) != 1 {
+		t.Errorf("Links count = %d, want 1", len(c.Links))
+	}
+}
+
+func TestParse_CommentBetweenCommandAndRoom(t *testing.T) {
+	// ##start followed by a comment, then the room definition -- should succeed
+	content := "1\n##start\n#this is a comment\nA 0 0\n##end\nB 1 1\nA-B\n"
+	path := writeTemp(t, content)
+	c, err := Parse(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if c.StartName != "A" {
+		t.Errorf("StartName = %q, want %q", c.StartName, "A")
+	}
+	if c.EndName != "B" {
+		t.Errorf("EndName = %q, want %q", c.EndName, "B")
+	}
+}
+
+func TestParse_MultipleErrorsOneReported(t *testing.T) {
+	// Input has multiple problems: 0 ants AND missing ##end AND duplicate room
+	content := "0\n##start\nA 0 0\nA 1 1\n"
+	path := writeTemp(t, content)
+	_, err := Parse(path)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	// Should report exactly one error, not multiple joined together
+	errStr := err.Error()
+	count := strings.Count(errStr, "ERROR:")
+	if count != 1 {
+		t.Errorf("expected exactly 1 ERROR: prefix, got %d in %q", count, errStr)
+	}
+}
+
+func TestParse_BlankFirstLine(t *testing.T) {
+	// First line is blank -- should fail to parse ant count
+	content := "\n1\n##start\nA 0 0\n##end\nB 1 1\nA-B\n"
+	path := writeTemp(t, content)
+	_, err := Parse(path)
+	if err == nil {
+		t.Fatal("expected error for blank first line, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid number of Ants") {
+		t.Errorf("error = %q, want it to contain 'invalid number of Ants'", err.Error())
+	}
+}
+
+func TestParse_MaxAntsBoundary(t *testing.T) {
+	// Exactly 10,000,000 should succeed
+	content := "10000000\n##start\nA 0 0\n##end\nB 1 1\nA-B\n"
+	path := writeTemp(t, content)
+	c, err := Parse(path)
+	if err != nil {
+		t.Fatalf("10M ants should succeed: %v", err)
+	}
+	if c.AntCount != 10_000_000 {
+		t.Errorf("AntCount = %d, want 10000000", c.AntCount)
+	}
+
+	// 10,000,001 should fail
+	content2 := "10000001\n##start\nA 0 0\n##end\nB 1 1\nA-B\n"
+	path2 := writeTemp(t, content2)
+	_, err2 := Parse(path2)
+	if err2 == nil {
+		t.Fatal("10M+1 ants should fail")
+	}
+	if !strings.Contains(err2.Error(), "invalid number of Ants") {
+		t.Errorf("error = %q, want it to contain 'invalid number of Ants'", err2.Error())
+	}
+}
+
 func TestParse_LinesSliceMatchesInput(t *testing.T) {
 	content := "3\n##start\nA 0 0\n##end\nB 1 1\nA-B"
 	path := writeTemp(t, content)
