@@ -121,21 +121,31 @@ func tputInt(cap string) (int, error) {
 
 var sttyOriginal string
 
+func sttyCmd(args ...string) *exec.Cmd {
+	cmd := exec.Command("stty", args...)
+	// When stdin is a pipe, stty cannot access the terminal.
+	// Redirect its stdin to /dev/tty so it always operates on the real terminal.
+	if ttyReader != nil {
+		cmd.Stdin = ttyReader
+	}
+	return cmd
+}
+
 func enableRawMode() {
 	// Save current settings
-	out, err := exec.Command("stty", "-g").Output()
+	out, err := sttyCmd("-g").Output()
 	if err == nil {
 		sttyOriginal = strings.TrimSpace(string(out))
 	}
 	// Set raw mode: no echo, no canonical mode, read 1 char at a time
-	_ = exec.Command("stty", "raw", "-echo", "min", "1", "time", "0").Run()
+	_ = sttyCmd("raw", "-echo", "min", "1", "time", "0").Run()
 }
 
 func disableRawMode() {
 	if sttyOriginal != "" {
-		_ = exec.Command("stty", sttyOriginal).Run()
+		_ = sttyCmd(sttyOriginal).Run()
 	} else {
-		_ = exec.Command("stty", "sane").Run()
+		_ = sttyCmd("sane").Run()
 	}
 }
 
@@ -543,7 +553,7 @@ type renderer struct {
 }
 
 func newRenderer(parsed *format.ParsedOutput, termW, termH int) *renderer {
-	panelH := 8 // rows reserved for info panel at bottom
+	panelH := 7 // rows reserved for info panel at bottom
 	canvasH := termH - panelH
 	if canvasH < 5 {
 		canvasH = 5
@@ -895,14 +905,14 @@ func (rn *renderer) renderPanel(sb *screenBuf, pb *playback) {
 	sb.write(fgReset)
 
 	// Controls help
-	sb.write(moveTo(panelTop+5, 2))
+	sb.write(moveTo(panelTop+4, 2))
 	sb.write(fgDimWhite)
 	sb.write("[Space] Pause/Resume   [+/-] Speed   [p] Mode: Auto/Step/Slider")
 	sb.write(fgReset)
 
-	sb.write(moveTo(panelTop+6, 2))
+	sb.write(moveTo(panelTop+5, 2))
 	sb.write(fgDimWhite)
-	sb.write("[Enter/Right] Next Turn   [Left] Prev Turn   [r] Reset   [q] Quit")
+	sb.write("[\u2190 Left] Prev Turn   [\u2192 Right] Next Turn   [r] Reset   [q] Quit")
 	sb.write(fgReset)
 }
 
@@ -920,7 +930,6 @@ const (
 	keyMinus
 	keyP
 	keyR
-	keyEnter
 	keyRight
 	keyLeft
 )
@@ -984,9 +993,6 @@ func readKeys(ch chan<- keyEvent, done <-chan struct{}) {
 			case b == 'r' || b == 'R':
 				ch <- keyR
 				i++
-			case b == 13 || b == 10: // Enter
-				ch <- keyEnter
-				i++
 			case b == 27 && i+2 < n && buf[i+1] == '[': // ESC sequence
 				switch buf[i+2] {
 				case 'C': // Right arrow
@@ -1027,8 +1033,6 @@ func showLoading() {
 func showCenteredError(msg string) {
 	cols, rows := getTerminalSize()
 
-	fmt.Print(enableAltBuf)
-	fmt.Print(hideCursor)
 	fmt.Print(clearScreen)
 
 	// Center vertically and horizontally
@@ -1065,9 +1069,6 @@ func showCenteredError(msg string) {
 		}
 	}
 	disableRawMode()
-
-	fmt.Print(showCursor)
-	fmt.Print(disableAltBuf)
 }
 
 // ---------------------------------------------------------------------------
@@ -1075,33 +1076,63 @@ func showCenteredError(msg string) {
 // ---------------------------------------------------------------------------
 
 func main() {
+	// Switch to alternate screen buffer early so all output (including
+	// the loading screen) goes to the alt buffer. When we exit and
+	// restore the main buffer the terminal is left clean.
+	fmt.Print(enableAltBuf)
+	fmt.Print(hideCursor)
+
+	// Idempotent cleanup that restores the terminal.
+	var cleanupOnce sync.Once
+	cleanup := func() {
+		cleanupOnce.Do(func() {
+			disableRawMode()
+			fmt.Print(showCursor)
+			fmt.Print(disableAltBuf)
+			fmt.Print(fgReset)
+			if ttyReader != nil && ttyReader != os.Stdin {
+				ttyReader.Close()
+			}
+		})
+	}
+	defer cleanup()
+
+	// Dedicated goroutine: force-exit on any SIGINT (works at any phase).
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt)
+	go func() {
+		<-sigCh
+		cleanup()
+		os.Exit(0)
+	}()
+
 	// Show loading while reading stdin
 	showLoading()
 
-	// Read all stdin
+	// Read all stdin (SIGINT during read is handled by the goroutine above).
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: failed to read stdin: %v\n", err)
-		os.Exit(1)
+		return
 	}
 
 	input := string(data)
 	if len(strings.TrimSpace(input)) == 0 {
 		fmt.Fprintf(os.Stderr, "ERROR: no input received on stdin\n")
-		os.Exit(1)
+		return
 	}
 
 	// Parse
 	parsed, err := format.ParseOutput(input)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		os.Exit(1)
+		return
 	}
 
 	// Handle error output from solver: display centered in terminal
 	if parsed.Error != "" {
 		showCenteredError(parsed.Error)
-		os.Exit(1)
+		return
 	}
 
 	// Get terminal size
@@ -1111,30 +1142,12 @@ func main() {
 	tty, err := openTTY()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: cannot open terminal for input: %v\n", err)
-		os.Exit(1)
+		return
 	}
 	ttyReader = tty
 
-	// Set up terminal
-	fmt.Print(enableAltBuf)
-	fmt.Print(hideCursor)
+	// Enable raw mode for keyboard input
 	enableRawMode()
-
-	// Cleanup on exit
-	cleanup := func() {
-		disableRawMode()
-		fmt.Print(showCursor)
-		fmt.Print(disableAltBuf)
-		fmt.Print(fgReset)
-		if ttyReader != nil && ttyReader != os.Stdin {
-			ttyReader.Close()
-		}
-	}
-	defer cleanup()
-
-	// Handle interrupt signal
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt)
 
 	// Initialize state
 	pb := newPlayback()
@@ -1223,13 +1236,16 @@ func main() {
 		prevTurn := pb.turnIdx - 1
 		prevAnts := recomputeAnts(prevTurn)
 		// Build entries: for each ant that moved in the current turn, animate backward
+		// along the same L-shaped route the forward animation used (reversed).
 		moves := parsed.Turns[pb.turnIdx]
 		entries := make([]animEntry, 0, len(moves))
 		for _, m := range moves {
-			// Ant is currently at m.RoomName, needs to go back to where prevAnts has it
-			srcRoom := m.RoomName
-			dstRoom := prevAnts.positions[m.AntID]
-			path := rend.computePath(srcRoom, dstRoom)
+			// Compute the forward path (source → destination) and reverse it
+			fwdSrc := prevAnts.positions[m.AntID]
+			path := rend.computePath(fwdSrc, m.RoomName)
+			for l, r := 0, len(path)-1; l < r; l, r = l+1, r-1 {
+				path[l], path[r] = path[r], path[l]
+			}
 			entries = append(entries, animEntry{antID: m.AntID, path: path})
 		}
 		pb.turnIdx = prevTurn
@@ -1250,6 +1266,13 @@ func main() {
 	const stepLockGap = 500 * time.Millisecond  // held-key suppression during opposite-dir animation
 	const stepRepeatGap = 100 * time.Millisecond // post-animation auto-repeat suppression
 
+	// Slider mode: event-driven. Each key event advances the animation
+	// by a time-proportional number of frames so that one full transition
+	// takes exactly pb.speed milliseconds regardless of auto-repeat rate.
+	var sliderLastEvent time.Time
+	var sliderFrac float64                          // fractional frame accumulator
+	const sliderNewTapGap = 150 * time.Millisecond  // gap longer than this = new tap (not held key)
+
 	// Initial render
 	rend.render(sb, ants, pb)
 
@@ -1258,14 +1281,13 @@ func main() {
 	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
 
-	elapsed := 0 // accumulated ms for auto-advance
+	elapsed := 0         // accumulated ms for auto-advance
+	replayWaiting := false // waiting to auto-replay after last turn
+	replayElapsed := 0     // ms accumulated during replay wait
 
 	running := true
 	for running {
 		select {
-		case <-sigCh:
-			running = false
-
 		case key := <-keyCh:
 			switch key {
 			case keyQuit:
@@ -1274,7 +1296,10 @@ func main() {
 			case keySpace:
 				if pb.mode == modeAutoPlay {
 					pb.paused = !pb.paused
+					replayWaiting = false
 				}
+				sliderLastEvent = time.Time{}
+				sliderFrac = 0
 				finishAnimation()
 				rend.render(sb, ants, pb)
 
@@ -1296,21 +1321,67 @@ func main() {
 					pb.mode = modeAutoPlay
 				}
 				pb.paused = false
+				replayWaiting = false
 				stepFwdActive = false
 				stepBwdActive = false
+				sliderLastEvent = time.Time{}
+				sliderFrac = 0
 				finishAnimation()
 				rend.render(sb, ants, pb)
 
 			case keyR:
 				finishAnimation()
+				replayWaiting = false
 				stepFwdActive = false
 				stepBwdActive = false
+				sliderLastEvent = time.Time{}
+				sliderFrac = 0
 				pb.turnIdx = -1
 				pb.paused = false
 				ants = newAntState(parsed.AntCount, parsed.StartName)
 				rend.render(sb, ants, pb)
 
-			case keyEnter, keyRight:
+			case keyRight:
+				if pb.mode == modeAutoPlay {
+					break
+				}
+				if pb.mode == modeSlider {
+					if pb.animating && !pb.animForward {
+						reverseAnimation()
+						sliderLastEvent = time.Time{}
+						sliderFrac = 0
+					}
+					if !pb.animating {
+						startTransitionForward()
+					}
+					if pb.animating {
+						now := time.Now()
+						var advance int
+						if sliderLastEvent.IsZero() || now.Sub(sliderLastEvent) > sliderNewTapGap {
+							advance = 1
+							sliderFrac = 0
+						} else {
+							elapsedMs := float64(now.Sub(sliderLastEvent)) / float64(time.Millisecond)
+							sliderFrac += elapsedMs * float64(pb.animTotal) / float64(pb.speed)
+							advance = int(sliderFrac)
+							sliderFrac -= float64(advance)
+						}
+						sliderLastEvent = now
+						if advance > 0 {
+							pb.animFrame += advance
+							for pb.animFrame >= pb.animTotal {
+								pb.animFrame -= pb.animTotal
+								finishAnimation()
+								startTransitionForward()
+								if !pb.animating {
+									break
+								}
+							}
+						}
+					}
+					rend.render(sb, ants, pb)
+					break
+				}
 				if pb.mode == modeStep && stepFwdActive {
 					now := time.Now()
 					if pb.animating {
@@ -1358,6 +1429,46 @@ func main() {
 				rend.render(sb, ants, pb)
 
 			case keyLeft:
+				if pb.mode == modeAutoPlay {
+					break
+				}
+				if pb.mode == modeSlider {
+					if pb.animating && pb.animForward {
+						reverseAnimation()
+						sliderLastEvent = time.Time{}
+						sliderFrac = 0
+					}
+					if !pb.animating {
+						startTransitionBackward()
+					}
+					if pb.animating {
+						now := time.Now()
+						var advance int
+						if sliderLastEvent.IsZero() || now.Sub(sliderLastEvent) > sliderNewTapGap {
+							advance = 1
+							sliderFrac = 0
+						} else {
+							elapsedMs := float64(now.Sub(sliderLastEvent)) / float64(time.Millisecond)
+							sliderFrac += elapsedMs * float64(pb.animTotal) / float64(pb.speed)
+							advance = int(sliderFrac)
+							sliderFrac -= float64(advance)
+						}
+						sliderLastEvent = now
+						if advance > 0 {
+							pb.animFrame += advance
+							for pb.animFrame >= pb.animTotal {
+								pb.animFrame -= pb.animTotal
+								finishAnimation()
+								startTransitionBackward()
+								if !pb.animating {
+									break
+								}
+							}
+						}
+					}
+					rend.render(sb, ants, pb)
+					break
+				}
 				if pb.mode == modeStep && stepBwdActive {
 					now := time.Now()
 					if pb.animating {
@@ -1407,30 +1518,51 @@ func main() {
 
 		case <-ticker.C:
 			if pb.animating {
-				pb.animFrame++
-				if pb.animFrame >= pb.animTotal {
-					finishAnimation()
-					// In auto mode, chain the next transition immediately
-					if pb.mode == modeAutoPlay && !pb.paused {
-						startTransitionForward()
-						if !pb.animating {
-							pb.paused = true
+				if pb.mode == modeSlider {
+					// Slider: key events drive frames, ticker does nothing
+				} else {
+					pb.animFrame++
+					if pb.animFrame >= pb.animTotal {
+						finishAnimation()
+						if pb.mode == modeAutoPlay && !pb.paused {
+							startTransitionForward()
+							if !pb.animating {
+								replayWaiting = true
+								replayElapsed = 0
+							}
 						}
 					}
+					rend.render(sb, ants, pb)
 				}
-				rend.render(sb, ants, pb)
+			} else if replayWaiting && pb.mode == modeAutoPlay && !pb.paused {
+				replayElapsed += int(frameDuration / time.Millisecond)
+				if replayElapsed >= 1000 {
+					replayWaiting = false
+					replayElapsed = 0
+					pb.turnIdx = -1
+					elapsed = 0
+					ants = newAntState(parsed.AntCount, parsed.StartName)
+					startTransitionForward()
+					rend.render(sb, ants, pb)
+				}
 			} else if pb.mode == modeAutoPlay && !pb.paused {
 				elapsed += int(frameDuration / time.Millisecond)
 				if elapsed >= 800 {
 					elapsed = 0
 					startTransitionForward()
 					if !pb.animating {
-						// No more turns, auto-pause
-						pb.paused = true
+						// No more turns — start replay countdown
+						replayWaiting = true
+						replayElapsed = 0
 					}
 					rend.render(sb, ants, pb)
 				}
 			}
 		}
 	}
+
+	// Force-exit after cleanup to prevent go run from hanging on MINGW64
+	// after catching SIGINT. cleanup is idempotent via sync.Once.
+	cleanup()
+	os.Exit(0)
 }
