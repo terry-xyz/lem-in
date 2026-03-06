@@ -121,31 +121,44 @@ func tputInt(cap string) (int, error) {
 
 var sttyOriginal string
 
-func sttyCmd(args ...string) *exec.Cmd {
-	cmd := exec.Command("stty", args...)
-	// When stdin is a pipe, stty cannot access the terminal.
-	// Redirect its stdin to /dev/tty so it always operates on the real terminal.
-	if ttyReader != nil {
-		cmd.Stdin = ttyReader
+// runStty executes an stty command with its own /dev/tty handle,
+// so it never competes with the readKeys goroutine for the same fd.
+func runStty(args ...string) ([]byte, error) {
+	f, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	if err != nil {
+		return nil, err
 	}
-	return cmd
+	defer f.Close()
+	cmd := exec.Command("stty", args...)
+	cmd.Stdin = f
+	return cmd.Output()
 }
 
 func enableRawMode() {
-	// Save current settings
-	out, err := sttyCmd("-g").Output()
+	out, err := runStty("-g")
 	if err == nil {
 		sttyOriginal = strings.TrimSpace(string(out))
 	}
-	// Set raw mode: no echo, no canonical mode, read 1 char at a time
-	_ = sttyCmd("raw", "-echo", "min", "1", "time", "0").Run()
+	_, _ = runStty("raw", "-echo", "min", "1", "time", "0")
 }
 
 func disableRawMode() {
-	if sttyOriginal != "" {
-		_ = sttyCmd(sttyOriginal).Run()
-	} else {
-		_ = sttyCmd("sane").Run()
+	// Run stty restore with a timeout. On MINGW64, a pending readKeys
+	// Read on /dev/tty can block stty's tcsetattr indefinitely. If stty
+	// can't complete in time, skip it — the shell restores terminal
+	// settings automatically when the process exits.
+	done := make(chan struct{})
+	go func() {
+		if sttyOriginal != "" {
+			_, _ = runStty(sttyOriginal)
+		} else {
+			_, _ = runStty("sane")
+		}
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
 	}
 }
 
@@ -938,12 +951,12 @@ const (
 // bypassing stdin which may be consumed by a pipe.
 func openTTY() (*os.File, error) {
 	// Try /dev/tty first (works on MINGW64, Linux, macOS)
-	f, err := os.Open("/dev/tty")
+	f, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
 	if err == nil {
 		return f, nil
 	}
 	// Fallback: try CONIN$ (native Windows)
-	f, err = os.Open("CONIN$")
+	f, err = os.OpenFile("CONIN$", os.O_RDWR, 0)
 	if err == nil {
 		return f, nil
 	}
@@ -952,57 +965,71 @@ func openTTY() (*os.File, error) {
 }
 
 // readKeys reads raw bytes from ttyReader and sends key events on a channel.
+// It uses a goroutine-per-read pattern so it can exit promptly when done is
+// closed, even if the underlying Read is blocked on MINGW64's PTY.
 func readKeys(ch chan<- keyEvent, done <-chan struct{}) {
 	reader := ttyReader
 	if reader == nil {
 		reader = os.Stdin
 	}
-	buf := make([]byte, 8)
+
+	type readResult struct {
+		buf [8]byte
+		n   int
+	}
+
 	for {
+		resCh := make(chan readResult, 1)
+		go func() {
+			var res readResult
+			res.n, _ = reader.Read(res.buf[:])
+			resCh <- res
+		}()
+
 		select {
 		case <-done:
 			return
-		default:
-		}
-
-		n, err := reader.Read(buf)
-		if err != nil || n == 0 {
-			// If EOF (pipe exhausted), sleep briefly to avoid spin
-			time.Sleep(50 * time.Millisecond)
-			continue
-		}
-
-		for i := 0; i < n; {
-			b := buf[i]
-			switch {
-			case b == 'q' || b == 'Q' || b == 3: // q or Ctrl-C
-				ch <- keyQuit
-				i++
-			case b == ' ':
-				ch <- keySpace
-				i++
-			case b == '+' || b == '=':
-				ch <- keyPlus
-				i++
-			case b == '-' || b == '_':
-				ch <- keyMinus
-				i++
-			case b == 'p' || b == 'P':
-				ch <- keyP
-				i++
-			case b == 'r' || b == 'R':
-				ch <- keyR
-				i++
-			case b == 27 && i+2 < n && buf[i+1] == '[': // ESC sequence
-				switch buf[i+2] {
-				case 'C': // Right arrow
-					ch <- keyRight
-				case 'D': // Left arrow
-					ch <- keyLeft
+		case res := <-resCh:
+			if res.n == 0 {
+				select {
+				case <-done:
+					return
+				case <-time.After(50 * time.Millisecond):
+					continue
 				}
-				i += 3
-			default:
-				i++
+			}
+			for i := 0; i < res.n; {
+				b := res.buf[i]
+				switch {
+				case b == 'q' || b == 'Q' || b == 3: // q or Ctrl-C
+					ch <- keyQuit
+					return // exit immediately so no new Read blocks the PTY
+				case b == ' ':
+					ch <- keySpace
+					i++
+				case b == '+' || b == '=':
+					ch <- keyPlus
+					i++
+				case b == '-' || b == '_':
+					ch <- keyMinus
+					i++
+				case b == 'p' || b == 'P':
+					ch <- keyP
+					i++
+				case b == 'r' || b == 'R':
+					ch <- keyR
+					i++
+				case b == 27 && i+2 < res.n && res.buf[i+1] == '[': // ESC sequence
+					switch res.buf[i+2] {
+					case 'C': // Right arrow
+						ch <- keyRight
+					case 'D': // Left arrow
+						ch <- keyLeft
+					}
+					i += 3
+				default:
+					i++
+				}
 			}
 		}
 	}
@@ -1082,17 +1109,26 @@ func main() {
 	fmt.Print(enableAltBuf)
 	fmt.Print(hideCursor)
 
+	// doneCh signals readKeys to stop. Declared before cleanup so
+	// cleanup can close it to unblock readKeys' select.
+	doneCh := make(chan struct{})
+	var doneOnce sync.Once
+
 	// Idempotent cleanup that restores the terminal.
 	var cleanupOnce sync.Once
 	cleanup := func() {
 		cleanupOnce.Do(func() {
-			disableRawMode()
-			fmt.Print(showCursor)
-			fmt.Print(disableAltBuf)
-			fmt.Print(fgReset)
+			// Signal readKeys to exit its select loop immediately.
+			doneOnce.Do(func() { close(doneCh) })
+			// Close keyboard reader to unblock the abandoned Read goroutine.
 			if ttyReader != nil && ttyReader != os.Stdin {
 				ttyReader.Close()
 			}
+			// Restore terminal settings (has internal timeout to avoid
+			// blocking if the Read goroutine still holds the MINGW64 PTY).
+			disableRawMode()
+			// Restore screen in a single write to avoid partial output.
+			fmt.Print(showCursor + disableAltBuf + fgReset)
 		})
 	}
 	defer cleanup()
@@ -1155,10 +1191,8 @@ func main() {
 	rend := newRenderer(parsed, termW, termH)
 	sb := &screenBuf{}
 
-	// Key input channel
+	// Key input channel (doneCh declared earlier, closed by cleanup)
 	keyCh := make(chan keyEvent, 16)
-	doneCh := make(chan struct{})
-	defer close(doneCh)
 	go readKeys(keyCh, doneCh)
 
 	// Snapshot function: recompute ant positions from scratch up to turnIdx
