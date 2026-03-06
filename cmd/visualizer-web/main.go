@@ -154,61 +154,73 @@ func buildHTML(jsonStr string) string {
 <title>lem-in 3D Visualizer</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-html,body{width:100%;height:100%;overflow:hidden;background:#0a0a0f;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;color:#c8c8d0;}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:#ccc;}
 canvas{display:block;}
-#error-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(10,10,15,0.95);
+#fade-in{position:fixed;top:0;left:0;width:100%;height:100%;background:#000;
+  z-index:9999;pointer-events:none;transition:opacity 1.2s ease;opacity:1;}
+#error-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);
   display:flex;align-items:center;justify-content:center;z-index:1000;flex-direction:column;}
-#error-overlay h1{color:#ff4444;font-size:2rem;margin-bottom:1rem;text-shadow:0 0 20px rgba(255,68,68,0.5);}
+#error-overlay h1{color:#ff4f75;font-size:2rem;margin-bottom:1rem;
+  text-shadow:0 0 30px rgba(255,79,117,0.5);}
 #error-overlay p{color:#aa8888;font-size:1.1rem;max-width:600px;text-align:center;line-height:1.6;}
+#vignette{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:98;
+  background:radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.55) 100%);}
 #ui-overlay{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:100;}
 #controls{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
-  background:rgba(15,15,25,0.85);border:1px solid rgba(100,100,140,0.3);
-  border-radius:12px;padding:14px 24px;display:flex;align-items:center;gap:16px;
-  pointer-events:all;backdrop-filter:blur(10px);box-shadow:0 4px 30px rgba(0,0,0,0.5);}
-#controls button{background:rgba(80,80,120,0.4);border:1px solid rgba(120,120,160,0.4);
-  color:#c8c8d0;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:0.9rem;
-  transition:all 0.2s;}
-#controls button:hover{background:rgba(100,100,150,0.5);border-color:rgba(150,150,200,0.5);}
-#controls button.active{background:rgba(60,120,200,0.4);border-color:rgba(80,140,220,0.5);}
+  background:rgba(10,10,20,0.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(68,136,204,0.1);
+  border-radius:16px;padding:14px 28px;display:flex;align-items:center;gap:16px;
+  pointer-events:all;box-shadow:0 8px 32px rgba(0,0,0,0.4);}
+#controls button{background:rgba(68,136,204,0.08);border:1px solid rgba(68,136,204,0.12);
+  color:#aaa;padding:8px 16px;border-radius:8px;cursor:pointer;font-size:0.9rem;
+  transition:all 0.3s ease;}
+#controls button:hover{background:rgba(68,136,204,0.18);border-color:rgba(68,136,204,0.3);
+  color:#ddd;box-shadow:0 0 15px rgba(68,136,204,0.08);}
+#controls button.active{background:rgba(68,136,204,0.22);border-color:rgba(68,136,204,0.35);
+  color:#fff;box-shadow:0 0 20px rgba(68,136,204,0.12);}
 #speed-container{display:flex;align-items:center;gap:8px;}
-#speed-slider{-webkit-appearance:none;appearance:none;width:100px;height:4px;
-  background:rgba(100,100,140,0.4);border-radius:2px;outline:none;}
+#speed-slider{-webkit-appearance:none;appearance:none;width:100px;height:3px;
+  background:rgba(68,136,204,0.15);border-radius:2px;outline:none;}
 #speed-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;
-  background:#6688cc;border-radius:50%;cursor:pointer;transition:background 0.2s;}
-#speed-slider::-webkit-slider-thumb:hover{background:#88aaee;}
+  background:#4488cc;border-radius:50%;cursor:pointer;transition:all 0.2s;
+  box-shadow:0 0 10px rgba(68,136,204,0.4);}
+#speed-slider::-webkit-slider-thumb:hover{background:#66aaee;
+  box-shadow:0 0 15px rgba(68,136,204,0.6);}
+#timeline-container{display:flex;align-items:center;gap:8px;flex:1;}
+#timeline-slider{-webkit-appearance:none;appearance:none;width:100%;height:3px;
+  background:rgba(68,136,204,0.15);border-radius:2px;outline:none;}
+#timeline-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:14px;height:14px;
+  background:#4488cc;border-radius:50%;cursor:pointer;transition:all 0.2s;
+  box-shadow:0 0 10px rgba(68,136,204,0.4);}
+#timeline-slider::-webkit-slider-thumb:hover{background:#66aaee;
+  box-shadow:0 0 15px rgba(68,136,204,0.6);}
 #turn-display{position:absolute;top:20px;right:20px;
-  background:rgba(15,15,25,0.85);border:1px solid rgba(100,100,140,0.3);
-  border-radius:10px;padding:12px 20px;pointer-events:all;
-  backdrop-filter:blur(10px);box-shadow:0 4px 30px rgba(0,0,0,0.5);}
-#turn-display .label{font-size:0.75rem;color:#888;text-transform:uppercase;letter-spacing:1px;}
-#turn-display .value{font-size:1.4rem;font-weight:600;color:#aabbdd;}
+  background:rgba(10,10,20,0.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(68,136,204,0.1);
+  border-radius:12px;padding:12px 20px;pointer-events:all;
+  box-shadow:0 8px 32px rgba(0,0,0,0.4);}
+#turn-display .label{font-size:0.7rem;color:#555;text-transform:uppercase;letter-spacing:2px;}
+#turn-display .value{font-size:1.4rem;font-weight:600;color:#4488cc;
+  text-shadow:0 0 15px rgba(68,136,204,0.3);}
 #info-panel{position:absolute;top:20px;left:20px;
-  background:rgba(15,15,25,0.85);border:1px solid rgba(100,100,140,0.3);
-  border-radius:10px;padding:12px 20px;pointer-events:all;
-  backdrop-filter:blur(10px);box-shadow:0 4px 30px rgba(0,0,0,0.5);}
-#info-panel .title{font-size:1rem;font-weight:600;color:#aabbdd;margin-bottom:4px;}
-#info-panel .detail{font-size:0.8rem;color:#888;line-height:1.5;}
-#hover-label{position:absolute;padding:6px 12px;background:rgba(15,15,25,0.9);
-  border:1px solid rgba(100,100,140,0.4);border-radius:6px;font-size:0.85rem;
-  pointer-events:none;display:none;white-space:nowrap;
-  box-shadow:0 2px 15px rgba(0,0,0,0.4);}
-#ant-list{position:absolute;top:100px;left:20px;max-height:calc(100% - 200px);width:200px;
-  background:rgba(15,15,25,0.85);border:1px solid rgba(100,100,140,0.3);
-  border-radius:10px;padding:12px 14px;pointer-events:all;overflow-y:auto;
-  backdrop-filter:blur(10px);box-shadow:0 4px 30px rgba(0,0,0,0.5);}
-#ant-list .title{font-size:0.85rem;font-weight:600;color:#aabbdd;margin-bottom:6px;}
-#ant-list-body{font-size:0.75rem;line-height:1.6;color:#999;}
-#ant-list-body .ant-row{display:flex;justify-content:space-between;gap:6px;}
-#ant-list-body .ant-id{font-weight:600;}
-#ant-list-body .ant-room{color:#777;text-align:right;overflow:hidden;text-overflow:ellipsis;}
-#minimap{position:absolute;bottom:80px;right:20px;width:180px;height:180px;
-  background:rgba(15,15,25,0.85);border:1px solid rgba(100,100,140,0.3);
-  border-radius:10px;pointer-events:all;overflow:hidden;
-  backdrop-filter:blur(10px);box-shadow:0 4px 30px rgba(0,0,0,0.5);}
-#minimap canvas{width:100%;height:100%;}
+  background:rgba(10,10,20,0.55);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border:1px solid rgba(68,136,204,0.1);
+  border-radius:12px;padding:12px 20px;pointer-events:all;
+  box-shadow:0 8px 32px rgba(0,0,0,0.4);}
+#info-panel .title{font-size:1rem;font-weight:600;color:#4488cc;margin-bottom:4px;
+  text-shadow:0 0 15px rgba(68,136,204,0.3);}
+#info-panel .detail{font-size:0.8rem;color:#555;line-height:1.5;}
+#hover-label{position:absolute;padding:8px 14px;
+  background:rgba(10,10,20,0.7);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border:1px solid rgba(68,136,204,0.12);border-radius:8px;font-size:0.8rem;
+  pointer-events:none;display:none;white-space:pre-line;line-height:1.5;
+  box-shadow:0 4px 15px rgba(0,0,0,0.3);}
 </style>
 </head>
 <body>
+<div id="fade-in"></div>
+<div id="vignette"></div>
 <div id="ui-overlay">
   <div id="turn-display">
     <div class="label">Turn</div>
@@ -223,15 +235,16 @@ canvas{display:block;}
     <button id="btn-prev" title="Previous Turn">&#9664;</button>
     <button id="btn-play" class="active" title="Play/Pause">&#9654;</button>
     <button id="btn-next" title="Next Turn">&#9654;</button>
+    <div id="timeline-container">
+      <input type="range" id="timeline-slider" min="0" max="0" step="1" value="0">
+    </div>
     <div id="speed-container">
-      <span style="font-size:0.8rem;color:#888;">Speed</span>
+      <span style="font-size:0.8rem;color:#555;">Speed</span>
       <input type="range" id="speed-slider" min="0.2" max="4" step="0.1" value="1">
       <span id="speed-value" style="font-size:0.8rem;min-width:30px;">1.0x</span>
     </div>
   </div>
   <div id="hover-label"></div>
-  <div id="ant-list"><div class="title">Ants</div><div id="ant-list-body"></div></div>
-  <div id="minimap"><canvas id="minimap-canvas" width="360" height="360"></canvas></div>
 </div>
 
 <script>
@@ -243,8 +256,8 @@ const SIM_DATA = `)
 <script type="importmap">
 {
   "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    "three": "https://cdn.jsdelivr.net/npm/three@0.166.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.166.0/examples/jsm/"
   }
 }
 </script>
@@ -252,10 +265,15 @@ const SIM_DATA = `)
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 // ---------- ERROR HANDLING ----------
 if (SIM_DATA.error) {
   document.getElementById('ui-overlay').style.display = 'none';
+  document.getElementById('fade-in').style.display = 'none';
   const overlay = document.createElement('div');
   overlay.id = 'error-overlay';
   overlay.innerHTML = '<h1>Error</h1><p>' + SIM_DATA.error.replace(/</g,'&lt;') + '</p>';
@@ -265,43 +283,37 @@ if (SIM_DATA.error) {
 
 // ---------- SCENE SETUP ----------
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0a0a12);
-scene.fog = new THREE.FogExp2(0x0a0a12, 0.012);
+scene.background = new THREE.Color(0x020208);
 
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.8;
+renderer.toneMappingExposure = 1.0;
 document.body.prepend(renderer.domElement);
+
+// ---------- POST-PROCESSING (BLOOM) ----------
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  1.2, 0.5, 0.2
+);
+composer.addPass(bloomPass);
+composer.addPass(new OutputPass());
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.dampingFactor = 0.08;
+controls.dampingFactor = 0.15;
 controls.rotateSpeed = 0.6;
 controls.zoomSpeed = 1.0;
 controls.panSpeed = 0.5;
 controls.minDistance = 3;
 controls.maxDistance = 200;
-
-// ---------- LIGHTING ----------
-const ambientLight = new THREE.AmbientLight(0x1a1a2e, 0.6);
-scene.add(ambientLight);
-
-const dirLight = new THREE.DirectionalLight(0xccccdd, 0.5);
-dirLight.position.set(10, 30, 10);
-dirLight.castShadow = true;
-dirLight.shadow.mapSize.set(1024, 1024);
-dirLight.shadow.camera.near = 0.5;
-dirLight.shadow.camera.far = 100;
-dirLight.shadow.camera.left = -40;
-dirLight.shadow.camera.right = 40;
-dirLight.shadow.camera.top = 40;
-dirLight.shadow.camera.bottom = -40;
-scene.add(dirLight);
+controls.enabled = false;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.3;
 
 // ---------- BUILD ROOM LOOKUP ----------
 const roomMap = {};
@@ -315,50 +327,76 @@ if (rooms.length > 0) {
   centerX /= rooms.length; centerY /= rooms.length; centerZ /= rooms.length;
 }
 
-// ---------- ROOM SPHERES ----------
+// ---------- ROOM SPHERES (MeshBasicMaterial + Glow + Orbital Rings) ----------
 const roomMeshes = [];
 const roomGroup = new THREE.Group();
 scene.add(roomGroup);
+const orbitalRings = [];
 
 rooms.forEach(r => {
   const px = r.x - centerX;
   const py = r.y - centerY;
   const pz = r.z - centerZ;
 
-  let color, emissive, radius;
+  let color, radius;
   if (r.isStart) {
-    color = 0x22cc66; emissive = 0x116633; radius = 0.8;
+    color = 0x4ADE80; radius = 0.8;
   } else if (r.isEnd) {
-    color = 0xcc3333; emissive = 0x661919; radius = 0.8;
+    color = 0xff4f75; radius = 0.8;
   } else {
-    color = 0x887766; emissive = 0x332211; radius = 0.5;
+    color = 0x4488cc; radius = 0.5;
   }
 
   const geom = new THREE.SphereGeometry(radius, 32, 24);
-  const mat = new THREE.MeshStandardMaterial({
-    color: color, emissive: emissive, emissiveIntensity: 0.6,
-    roughness: 0.4, metalness: 0.3
-  });
+  const mat = new THREE.MeshBasicMaterial({ color: color });
   const mesh = new THREE.Mesh(geom, mat);
-  mesh.position.set(px, py, pz);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  mesh.userData = { roomName: r.name, isStart: r.isStart, isEnd: r.isEnd, baseColor: color, baseEmissive: emissive };
+  mesh.userData = { roomName: r.name, isStart: r.isStart, isEnd: r.isEnd, baseColor: color };
+  // Scatter position for fly-in animation (inspired by Particle Globe implosion)
+  const sf = 3 + Math.random() * 4;
+  mesh.userData.finalPos = new THREE.Vector3(px, py, pz);
+  mesh.userData.scatterPos = new THREE.Vector3(
+    px * sf + (Math.random() - 0.5) * 10,
+    py * sf + (Math.random() - 0.5) * 10,
+    pz * sf + (Math.random() - 0.5) * 10
+  );
+  mesh.position.copy(mesh.userData.scatterPos);
   roomGroup.add(mesh);
   roomMeshes.push(mesh);
 
-  // Point light at each room for cave glow
-  const intensity = (r.isStart || r.isEnd) ? 1.5 : 0.4;
-  const lightColor = r.isStart ? 0x44ff88 : (r.isEnd ? 0xff4444 : 0xaa9977);
-  const pointLight = new THREE.PointLight(lightColor, intensity, 15, 2);
-  pointLight.position.copy(mesh.position);
-  scene.add(pointLight);
+  // Glow shell
+  const glowGeom = new THREE.SphereGeometry(radius * 2, 32, 24);
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: color, transparent: true, opacity: 0.08,
+    blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  mesh.add(new THREE.Mesh(glowGeom, glowMat));
+
+  // Orbital rings for start/end nodes
+  if (r.isStart || r.isEnd) {
+    const ringGeom = new THREE.TorusGeometry(radius * 1.8, 0.03, 8, 48);
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: color, transparent: true, opacity: 0.35,
+      blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    const ring1 = new THREE.Mesh(ringGeom, ringMat);
+    ring1.rotation.x = Math.PI * 0.5;
+    mesh.add(ring1);
+    orbitalRings.push(ring1);
+
+    const ring2Geom = new THREE.TorusGeometry(radius * 2.2, 0.025, 8, 48);
+    const ring2 = new THREE.Mesh(ring2Geom, ringMat.clone());
+    ring2.rotation.x = Math.PI * 0.3;
+    ring2.rotation.z = Math.PI * 0.4;
+    mesh.add(ring2);
+    orbitalRings.push(ring2);
+  }
 
   roomMap[r.name] = { mesh, pos: new THREE.Vector3(px, py, pz) };
 });
 
-// ---------- TUNNEL LINES ----------
+// ---------- EDGES (Line + LineBasicMaterial) ----------
 const tunnelGroup = new THREE.Group();
+tunnelGroup.visible = false;
 scene.add(tunnelGroup);
 
 const linkObjects = [];
@@ -367,52 +405,19 @@ links.forEach(l => {
   const toRoom = roomMap[l.to];
   if (!fromRoom || !toRoom) return;
 
-  // Create a tube-like line with LineSegments
-  const points = [];
-  const segCount = 20;
-  for (let i = 0; i <= segCount; i++) {
-    const t = i / segCount;
-    const p = new THREE.Vector3().lerpVectors(fromRoom.pos, toRoom.pos, t);
-    // Slight sag for visual effect
-    const sag = Math.sin(t * Math.PI) * 0.3;
-    p.y -= sag;
-    points.push(p);
-  }
-
-  const curve = new THREE.CatmullRomCurve3(points);
-  const tubeGeom = new THREE.TubeGeometry(curve, 16, 0.06, 8, false);
-  const tubeMat = new THREE.MeshStandardMaterial({
-    color: 0x554433, emissive: 0x221100, emissiveIntensity: 0.2,
-    roughness: 0.7, metalness: 0.2, transparent: true, opacity: 0.7
+  const mid = fromRoom.pos.clone().lerp(toRoom.pos, 0.5);
+  mid.y += fromRoom.pos.distanceTo(toRoom.pos) * 0.06;
+  const curve = new THREE.CatmullRomCurve3([fromRoom.pos.clone(), mid, toRoom.pos.clone()]);
+  const tubeGeom = new THREE.TubeGeometry(curve, 12, 0.04, 6, false);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x1a2a3a, transparent: true, opacity: 0.7,
+    blending: THREE.AdditiveBlending, depthWrite: false
   });
-  const tube = new THREE.Mesh(tubeGeom, tubeMat);
-  tube.castShadow = true;
-  tube.receiveShadow = true;
-  tube.userData = { from: l.from, to: l.to };
+  const tube = new THREE.Mesh(tubeGeom, mat);
+  tube.userData = { from: l.from, to: l.to, baseColor: 0x1a2a3a, baseOpacity: 0.7 };
   tunnelGroup.add(tube);
   linkObjects.push(tube);
 });
-
-// ---------- CAVE PARTICLES (dust / atmosphere) ----------
-const dustCount = 600;
-const dustGeom = new THREE.BufferGeometry();
-const dustPositions = new Float32Array(dustCount * 3);
-const dustSizes = new Float32Array(dustCount);
-const spread = 60;
-for (let i = 0; i < dustCount; i++) {
-  dustPositions[i * 3] = (Math.random() - 0.5) * spread;
-  dustPositions[i * 3 + 1] = (Math.random() - 0.5) * spread;
-  dustPositions[i * 3 + 2] = (Math.random() - 0.5) * spread;
-  dustSizes[i] = Math.random() * 2 + 0.5;
-}
-dustGeom.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
-dustGeom.setAttribute('size', new THREE.BufferAttribute(dustSizes, 1));
-const dustMat = new THREE.PointsMaterial({
-  color: 0x665544, size: 0.15, transparent: true, opacity: 0.25,
-  sizeAttenuation: true, blending: THREE.AdditiveBlending, depthWrite: false
-});
-const dustSystem = new THREE.Points(dustGeom, dustMat);
-scene.add(dustSystem);
 
 // ---------- CAMERA POSITION ----------
 let maxDist = 0;
@@ -423,18 +428,59 @@ rooms.forEach(r => {
   if (d > maxDist) maxDist = d;
 });
 const camDist = Math.max(maxDist * 2.5, 15);
-camera.position.set(camDist * 0.6, camDist * 0.8, camDist * 0.6);
+scene.fog = new THREE.FogExp2(0x020208, 0.8 / camDist);
+const camEnd = new THREE.Vector3(camDist * 0.6, camDist * 0.8, camDist * 0.6);
+const camStart = camEnd.clone().multiplyScalar(2.5);
+camera.position.copy(camStart);
 camera.lookAt(0, 0, 0);
 controls.target.set(0, 0, 0);
+let introProgress = 0;
+
+// ---------- AMBIENT PARTICLES (Firefly-style) ----------
+const PARTICLE_COUNT = 200;
+const pPositions = new Float32Array(PARTICLE_COUNT * 3);
+const pVelocities = [];
+const pSpread = Math.max(maxDist * 3, 30);
+
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  pPositions[i * 3] = (Math.random() - 0.5) * pSpread;
+  pPositions[i * 3 + 1] = (Math.random() - 0.5) * pSpread;
+  pPositions[i * 3 + 2] = (Math.random() - 0.5) * pSpread;
+  pVelocities.push({
+    vx: (Math.random() - 0.5) * 0.3,
+    vy: (Math.random() - 0.5) * 0.15,
+    vz: (Math.random() - 0.5) * 0.3,
+    phase: Math.random() * Math.PI * 2
+  });
+}
+
+const pGeom = new THREE.BufferGeometry();
+pGeom.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+
+// Soft circular texture (SPH kernel-inspired radial falloff from Firefly)
+const pCanvas = document.createElement('canvas');
+pCanvas.width = 32; pCanvas.height = 32;
+const pCtx = pCanvas.getContext('2d');
+const grad = pCtx.createRadialGradient(16, 16, 0, 16, 16, 16);
+grad.addColorStop(0, 'rgba(255,255,255,1)');
+grad.addColorStop(0.3, 'rgba(255,255,255,0.6)');
+grad.addColorStop(0.7, 'rgba(255,255,255,0.15)');
+grad.addColorStop(1, 'rgba(255,255,255,0)');
+pCtx.fillStyle = grad;
+pCtx.fillRect(0, 0, 32, 32);
+const pTex = new THREE.CanvasTexture(pCanvas);
+
+const pMat = new THREE.PointsMaterial({
+  color: 0x6699cc, size: 0.5, transparent: true, opacity: 0.6,
+  blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
+  map: pTex
+});
+const ambientParticles = new THREE.Points(pGeom, pMat);
+scene.add(ambientParticles);
 
 // ---------- ANT MANAGEMENT ----------
-const antMeshes = {};   // antId -> mesh
-const antTrails = {};   // antId -> trail points array
-const antPrevRoom = {}; // antId -> previous room name (for path computation)
-
-// Track which room each ant is at before the simulation starts
-// Before turn 1, all ants are at the start room.
-const antCurrentRoom = {}; // antId -> room name
+const antMeshes = {};
+const antCurrentRoom = {};
 
 function getAntColor(antId) {
   const hue = (antId * 137.508) % 360;
@@ -445,87 +491,234 @@ function getOrCreateAnt(antId) {
   if (antMeshes[antId]) return antMeshes[antId];
   const color = getAntColor(antId);
   const geom = new THREE.SphereGeometry(0.25, 16, 12);
-  const mat = new THREE.MeshStandardMaterial({
-    color: color, emissive: color, emissiveIntensity: 0.8,
-    roughness: 0.2, metalness: 0.5
-  });
+  const mat = new THREE.MeshBasicMaterial({ color: color });
   const mesh = new THREE.Mesh(geom, mat);
   mesh.visible = false;
+  mesh.userData = { baseColor: color.getHex() };
   scene.add(mesh);
   antMeshes[antId] = mesh;
 
-  // Glow
-  const glowGeom = new THREE.SphereGeometry(0.4, 16, 12);
+  // Glow shell
+  const glowGeom = new THREE.SphereGeometry(0.5, 16, 12);
   const glowMat = new THREE.MeshBasicMaterial({
-    color: color, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending
+    color: color, transparent: true, opacity: 0.2,
+    blending: THREE.AdditiveBlending, depthWrite: false
   });
-  const glow = new THREE.Mesh(glowGeom, glowMat);
-  mesh.add(glow);
+  mesh.add(new THREE.Mesh(glowGeom, glowMat));
 
-  // Point light on ant
-  const antLight = new THREE.PointLight(color.getHex(), 0.6, 6, 2);
-  mesh.add(antLight);
-
-  antTrails[antId] = [];
   antCurrentRoom[antId] = SIM_DATA.startName;
-
   return mesh;
 }
 
-// ---------- TRAIL SYSTEM ----------
-const trailParticles = [];
-const maxTrailParticles = 5000;
+// ---------- TRAIL SYSTEM (BufferGeometry Ring Buffer) ----------
+const antTrails = {};
+const TRAIL_LEN = 128;
 
-function addTrailPoint(position, color) {
-  const geom = new THREE.SphereGeometry(0.08, 4, 4);
-  const mat = new THREE.MeshBasicMaterial({
-    color: color, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending
+function getOrCreateTrail(antId) {
+  if (antTrails[antId]) return antTrails[antId];
+
+  const positions = new Float32Array(TRAIL_LEN * 3);
+  const colors = new Float32Array(TRAIL_LEN * 3);
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geom.setDrawRange(0, 0);
+
+  const mat = new THREE.LineBasicMaterial({
+    vertexColors: true, transparent: true, opacity: 0.8,
+    blending: THREE.AdditiveBlending, depthWrite: false
   });
-  const p = new THREE.Mesh(geom, mat);
-  p.position.copy(position);
-  p.userData.life = 1.0;
-  scene.add(p);
-  trailParticles.push(p);
+  const line = new THREE.Line(geom, mat);
+  scene.add(line);
 
-  // Remove old particles
-  while (trailParticles.length > maxTrailParticles) {
-    const old = trailParticles.shift();
-    scene.remove(old);
-    old.geometry.dispose();
-    old.material.dispose();
+  const trail = { line, positions, colors, writeIdx: 0, count: 0 };
+  antTrails[antId] = trail;
+  return trail;
+}
+
+function addTrailSample(antId, position) {
+  const trail = getOrCreateTrail(antId);
+  const c = getAntColor(antId);
+  const i = trail.writeIdx;
+  trail.positions[i * 3] = position.x;
+  trail.positions[i * 3 + 1] = position.y;
+  trail.positions[i * 3 + 2] = position.z;
+  trail.colors[i * 3] = c.r;
+  trail.colors[i * 3 + 1] = c.g;
+  trail.colors[i * 3 + 2] = c.b;
+  trail.writeIdx = (trail.writeIdx + 1) % TRAIL_LEN;
+  if (trail.count < TRAIL_LEN) trail.count++;
+  trail.line.geometry.setDrawRange(0, trail.count);
+  trail.line.geometry.attributes.position.needsUpdate = true;
+  trail.line.geometry.attributes.color.needsUpdate = true;
+}
+
+function fadeTrails(dt) {
+  const decay = 1 - dt * 1.5;
+  Object.values(antTrails).forEach(trail => {
+    const c = trail.colors;
+    for (let i = 0; i < trail.count * 3; i++) {
+      c[i] *= decay;
+      if (c[i] < 0.001) c[i] = 0;
+    }
+    trail.line.geometry.attributes.color.needsUpdate = true;
+  });
+}
+
+function clearTrails() {
+  Object.values(antTrails).forEach(trail => {
+    trail.positions.fill(0);
+    trail.colors.fill(0);
+    trail.writeIdx = 0;
+    trail.count = 0;
+    trail.line.geometry.setDrawRange(0, 0);
+    trail.line.geometry.attributes.position.needsUpdate = true;
+    trail.line.geometry.attributes.color.needsUpdate = true;
+  });
+}
+
+// ---------- ARRIVAL BURST SYSTEM (Pool-based) ----------
+const BURST_SLOTS = 8;
+const BURST_PARTICLES = 12;
+const bursts = [];
+for (let s = 0; s < BURST_SLOTS; s++) {
+  const pos = new Float32Array(BURST_PARTICLES * 3);
+  const col = new Float32Array(BURST_PARTICLES * 3);
+  const vel = new Float32Array(BURST_PARTICLES * 3);
+  const bg = new THREE.BufferGeometry();
+  bg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  bg.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  bg.setDrawRange(0, 0);
+  const bMat = new THREE.PointsMaterial({
+    size: 0.4, vertexColors: true, transparent: true, opacity: 1.0,
+    blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true,
+    map: pTex
+  });
+  const points = new THREE.Points(bg, bMat);
+  scene.add(points);
+  bursts.push({ points, pos, col, vel, active: false, timer: 0 });
+}
+
+function triggerBurst(position, color) {
+  const slot = bursts.find(b => !b.active);
+  if (!slot) return;
+  for (let i = 0; i < BURST_PARTICLES; i++) {
+    slot.pos[i * 3] = position.x;
+    slot.pos[i * 3 + 1] = position.y;
+    slot.pos[i * 3 + 2] = position.z;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const spd = 2 + Math.random() * 3;
+    slot.vel[i * 3] = Math.sin(phi) * Math.cos(theta) * spd;
+    slot.vel[i * 3 + 1] = Math.sin(phi) * Math.sin(theta) * spd;
+    slot.vel[i * 3 + 2] = Math.cos(phi) * spd;
+    slot.col[i * 3] = color.r;
+    slot.col[i * 3 + 1] = color.g;
+    slot.col[i * 3 + 2] = color.b;
+  }
+  slot.points.geometry.attributes.position.needsUpdate = true;
+  slot.points.geometry.attributes.color.needsUpdate = true;
+  slot.points.geometry.setDrawRange(0, BURST_PARTICLES);
+  slot.active = true;
+  slot.timer = 0;
+}
+
+function updateBursts(dt) {
+  for (const slot of bursts) {
+    if (!slot.active) continue;
+    slot.timer += dt;
+    if (slot.timer > 0.5) {
+      slot.points.geometry.setDrawRange(0, 0);
+      slot.active = false;
+      continue;
+    }
+    const fade = 1 - dt * 3;
+    for (let i = 0; i < BURST_PARTICLES; i++) {
+      slot.pos[i * 3] += slot.vel[i * 3] * dt;
+      slot.pos[i * 3 + 1] += slot.vel[i * 3 + 1] * dt;
+      slot.pos[i * 3 + 2] += slot.vel[i * 3 + 2] * dt;
+      slot.col[i * 3] *= fade;
+      slot.col[i * 3 + 1] *= fade;
+      slot.col[i * 3 + 2] *= fade;
+    }
+    slot.points.geometry.attributes.position.needsUpdate = true;
+    slot.points.geometry.attributes.color.needsUpdate = true;
   }
 }
 
-function updateTrails(dt) {
-  const fadeSpeed = 0.4;
-  for (let i = trailParticles.length - 1; i >= 0; i--) {
-    const p = trailParticles[i];
-    p.userData.life -= dt * fadeSpeed;
-    p.material.opacity = Math.max(0, p.userData.life * 0.5);
-    p.scale.setScalar(Math.max(0.1, p.userData.life));
-    if (p.userData.life <= 0) {
-      scene.remove(p);
-      p.geometry.dispose();
-      p.material.dispose();
-      trailParticles.splice(i, 1);
+// ---------- NODE PULSE SYSTEM ----------
+const roomPulses = {};
+
+function pulseRoom(roomName) {
+  roomPulses[roomName] = { t: 0 };
+}
+
+function updatePulses(dt) {
+  for (const name in roomPulses) {
+    const p = roomPulses[name];
+    p.t += dt * 3.0;
+    if (p.t >= 1.0) {
+      const rm = roomMap[name];
+      if (rm) rm.mesh.scale.setScalar(1.0);
+      delete roomPulses[name];
+    } else {
+      const rm = roomMap[name];
+      if (rm) {
+        const ease = 1 - (1 - p.t) * (1 - p.t);
+        const s = 1.5 - 0.5 * ease;
+        rm.mesh.scale.setScalar(s);
+      }
     }
   }
 }
 
 // ---------- ANIMATION STATE ----------
 let currentTurn = 0;
-let turnProgress = 0;  // 0..1 within current turn
+let turnProgress = 0;
 let isPlaying = true;
 let speed = 1.0;
 let animComplete = turns.length === 0;
+let completionMode = false;
 
-// Pre-compute animation paths for each turn
-// For each turn, for each ant movement, we need: fromPos, toPos, antId
-// We need to track where each ant currently is to determine the "from" position.
+function showCompletionHighlight() {
+  const usedRooms = new Set();
+  for (const key of Object.keys(tunnelTraffic)) {
+    const parts = key.split('-');
+    usedRooms.add(parts[0]);
+    usedRooms.add(parts[1]);
+  }
+  roomMeshes.forEach(m => {
+    if (usedRooms.has(m.userData.roomName)) return;
+    const bc = new THREE.Color(m.userData.baseColor);
+    m.material.color.copy(bc.multiplyScalar(0.15));
+  });
+  linkObjects.forEach(line => {
+    const key = line.userData.from + '-' + line.userData.to;
+    if (tunnelTraffic[key]) {
+      line.material.color.set(0x4488cc);
+      line.material.opacity = 1.0;
+    } else {
+      line.material.opacity = 0.05;
+    }
+  });
+  completionMode = true;
+}
+
+function clearCompletionHighlight() {
+  if (!completionMode) return;
+  roomMeshes.forEach(m => {
+    m.material.color.set(m.userData.baseColor);
+  });
+  linkObjects.forEach(line => {
+    line.material.color.set(line.userData.baseColor);
+    line.material.opacity = line.userData.baseOpacity;
+  });
+  completionMode = false;
+}
+
 function buildTurnAnimations() {
   const anims = [];
-  const antPos = {};  // track positions through turns
-
+  const antPos = {};
   for (let t = 0; t < turns.length; t++) {
     const turnAnims = [];
     for (const m of turns[t]) {
@@ -562,17 +755,27 @@ function cubicBezier(p0, p1, p2, p3, t) {
 }
 
 function getAnimPosition(from, to, t) {
-  // Cubic Bezier: lift ants above the tunnel with an arc
-  const mid = new THREE.Vector3().lerpVectors(from, to, 0.5);
   const dist = from.distanceTo(to);
   const lift = dist * 0.4;
   const cp1 = new THREE.Vector3().lerpVectors(from, to, 0.25);
   cp1.y += lift;
   const cp2 = new THREE.Vector3().lerpVectors(from, to, 0.75);
   cp2.y += lift;
-  // Ease in-out
   const et = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
   return cubicBezier(from, cp1, cp2, to, et);
+}
+
+// ---------- ANT PATHS PRE-COMPUTATION ----------
+const antPaths = {};
+{
+  const tempPos = {};
+  for (let t = 0; t < turns.length; t++) {
+    for (const m of turns[t]) {
+      if (!antPaths[m.antId]) antPaths[m.antId] = [SIM_DATA.startName];
+      antPaths[m.antId].push(m.room);
+      tempPos[m.antId] = m.room;
+    }
+  }
 }
 
 // ---------- RAYCASTING (HOVER) ----------
@@ -586,7 +789,7 @@ renderer.domElement.addEventListener('mousemove', (e) => {
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
   raycaster.setFromCamera(mouse, camera);
-  const intersects = raycaster.intersectObjects(roomMeshes);
+  const intersects = raycaster.intersectObjects(roomMeshes, false);
 
   if (intersects.length > 0) {
     const hit = intersects[0].object;
@@ -599,10 +802,40 @@ renderer.domElement.addEventListener('mousemove', (e) => {
     hoverLabel.style.display = 'block';
     hoverLabel.style.left = (e.clientX + 15) + 'px';
     hoverLabel.style.top = (e.clientY - 10) + 'px';
-    let labelText = rName;
-    if (hit.userData.isStart) labelText += ' (START)';
-    if (hit.userData.isEnd) labelText += ' (END)';
-    hoverLabel.textContent = labelText;
+
+    // Compute neighbors inline
+    const nb = [];
+    links.forEach(function(l) {
+      if (l.from === rName) nb.push(l.to);
+      else if (l.to === rName) nb.push(l.from);
+    });
+
+    // Compute ants that pass through this room
+    const ants = [];
+    Object.keys(antPaths).forEach(function(idStr) {
+      if (antPaths[idStr].indexOf(rName) !== -1) ants.push(idStr);
+    });
+
+    var line1 = rName;
+    if (hit.userData.isStart) line1 += '  [START]';
+    if (hit.userData.isEnd) line1 += '  [END]';
+
+    var line2 = '';
+    if (hit.userData.isStart) {
+      line2 = 'All ' + SIM_DATA.antCount + ' ants depart';
+    } else if (hit.userData.isEnd) {
+      line2 = 'All ' + SIM_DATA.antCount + ' ants arrive';
+    } else if (ants.length > 0) {
+      var ids = ants.length <= 8 ? ants.join(', ') : ants.slice(0, 7).join(', ') + ' ...';
+      line2 = 'Ants: ' + ids + ' (' + ants.length + ')';
+    } else {
+      line2 = 'No ant traffic';
+    }
+
+    var nbStr = nb.length <= 5 ? nb.join(', ') : nb.slice(0, 4).join(', ') + ' +' + (nb.length - 4);
+    var line3 = 'Links: ' + nbStr + ' (' + nb.length + ')';
+
+    hoverLabel.textContent = line1 + '\n' + line2 + '\n' + line3;
   } else {
     if (hoveredRoom) {
       resetHighlights();
@@ -612,7 +845,6 @@ renderer.domElement.addEventListener('mousemove', (e) => {
   }
 });
 
-// Find all paths passing through a given room
 function pathsThroughRoom(roomName) {
   const result = new Set();
   Object.entries(antPaths).forEach(([id, path]) => {
@@ -623,7 +855,6 @@ function pathsThroughRoom(roomName) {
   return result;
 }
 
-// Collect tunnel keys on paths through a room
 function tunnelsOnPathsThrough(roomName) {
   const tunnelKeys = new Set();
   Object.values(antPaths).forEach(path => {
@@ -636,6 +867,7 @@ function tunnelsOnPathsThrough(roomName) {
   return tunnelKeys;
 }
 
+// ---------- HIGHLIGHT / RESET ----------
 let highlightedTunnelKeys = new Set();
 let isPulsing = false;
 
@@ -644,20 +876,20 @@ function highlightRoom(roomName) {
   highlightedTunnelKeys = tunnelsOnPathsThrough(roomName);
   isPulsing = true;
 
-  // Highlight rooms on the paths
   roomMeshes.forEach(m => {
     if (pathRooms.has(m.userData.roomName)) {
-      m.material.emissiveIntensity = 1.5;
-      m.scale.setScalar(m.userData.roomName === roomName ? 1.4 : 1.2);
+      m.material.color.set(0xffffff);
+      if (!roomPulses[m.userData.roomName]) {
+        m.scale.setScalar(m.userData.roomName === roomName ? 1.4 : 1.2);
+      }
     }
   });
-  // Highlight full-path tunnels
-  linkObjects.forEach(tube => {
-    const key = tube.userData.from + '-' + tube.userData.to;
+
+  linkObjects.forEach(line => {
+    const key = line.userData.from + '-' + line.userData.to;
     if (highlightedTunnelKeys.has(key)) {
-      tube.material.emissiveIntensity = 0.9;
-      tube.material.opacity = 1.0;
-      tube.material.color.set(0xaa8855);
+      line.material.color.set(0x4488cc);
+      line.material.opacity = 1.0;
     }
   });
 }
@@ -666,13 +898,14 @@ function resetHighlights() {
   isPulsing = false;
   highlightedTunnelKeys.clear();
   roomMeshes.forEach(m => {
-    m.material.emissiveIntensity = 0.6;
-    m.scale.setScalar(1.0);
+    m.material.color.set(m.userData.baseColor);
+    if (!roomPulses[m.userData.roomName]) {
+      m.scale.setScalar(1.0);
+    }
   });
-  linkObjects.forEach(tube => {
-    tube.material.emissiveIntensity = tube.userData.baseEmissiveIntensity || 0.2;
-    tube.material.opacity = tube.userData.baseOpacity || 0.7;
-    tube.material.color.set(0x554433);
+  linkObjects.forEach(line => {
+    line.material.color.set(line.userData.baseColor);
+    line.material.opacity = line.userData.baseOpacity;
   });
 }
 
@@ -688,43 +921,86 @@ const infoDetail = document.getElementById('info-detail');
 
 infoDetail.textContent = SIM_DATA.antCount + ' ants | ' + rooms.length + ' rooms | ' + links.length + ' tunnels | ' + turns.length + ' turns';
 
-// ---------- ANT LIST ----------
-const antListBody = document.getElementById('ant-list-body');
+btnPlay.addEventListener('click', () => {
+  isPlaying = !isPlaying;
+  btnPlay.innerHTML = isPlaying ? '&#10074;&#10074;' : '&#9654;';
+  btnPlay.classList.toggle('active', isPlaying);
+});
 
-// Pre-compute which path each ant takes (sequence of rooms)
-const antPaths = {};
-{
-  const tempPos = {};
-  for (let t = 0; t < turns.length; t++) {
+btnRestart.addEventListener('click', () => {
+  currentTurn = 0;
+  turnProgress = 0;
+  animComplete = turns.length === 0;
+  clearCompletionHighlight();
+  hideAllAnts();
+  clearTrails();
+});
+
+btnPrev.addEventListener('click', () => {
+  if (currentTurn > 0) {
+    clearCompletionHighlight();
+    currentTurn--;
+    turnProgress = 0;
+    animComplete = false;
+    rebuildAntsToTurn(currentTurn);
+  }
+});
+
+btnNext.addEventListener('click', () => {
+  if (currentTurn < turns.length - 1) {
+    clearCompletionHighlight();
+    currentTurn++;
+    turnProgress = 0;
+    animComplete = false;
+    rebuildAntsToTurn(currentTurn);
+  }
+});
+
+speedSlider.addEventListener('input', () => {
+  speed = parseFloat(speedSlider.value);
+  speedValue.textContent = speed.toFixed(1) + 'x';
+});
+
+const timelineSlider = document.getElementById('timeline-slider');
+timelineSlider.max = turns.length;
+timelineSlider.addEventListener('input', () => {
+  const target = parseInt(timelineSlider.value);
+  currentTurn = target;
+  turnProgress = 0;
+  clearCompletionHighlight();
+  if (target >= turns.length) {
+    animComplete = true;
+    rebuildAntsToTurn(turns.length);
+    hideFinishedAnts();
+  } else {
+    animComplete = false;
+    rebuildAntsToTurn(target);
+  }
+});
+
+function hideAllAnts() {
+  Object.values(antMeshes).forEach(m => { m.visible = false; });
+}
+
+function rebuildAntsToTurn(targetTurn) {
+  hideAllAnts();
+  clearTrails();
+  const antPos = {};
+  for (let t = 0; t < targetTurn; t++) {
     for (const m of turns[t]) {
-      if (!antPaths[m.antId]) antPaths[m.antId] = [SIM_DATA.startName];
-      antPaths[m.antId].push(m.room);
-      tempPos[m.antId] = m.room;
+      antPos[m.antId] = m.room;
+    }
+  }
+  for (const [idStr, roomName] of Object.entries(antPos)) {
+    const id = parseInt(idStr);
+    const mesh = getOrCreateAnt(id);
+    const room = roomMap[roomName];
+    if (room && roomName !== SIM_DATA.endName) {
+      mesh.position.copy(room.pos);
+      mesh.visible = true;
     }
   }
 }
-
-function updateAntList() {
-  // Build current room for each ant based on completed turns
-  const antPos = {};
-  const completedTurns = animComplete ? turns.length : currentTurn;
-  for (let i = 1; i <= SIM_DATA.antCount; i++) antPos[i] = SIM_DATA.startName;
-  for (let t = 0; t < completedTurns; t++) {
-    for (const m of turns[t]) antPos[m.antId] = m.room;
-  }
-
-  let html = '';
-  for (let i = 1; i <= Math.min(SIM_DATA.antCount, 50); i++) {
-    const path = antPaths[i];
-    const pathStr = path ? path.join(' > ') : SIM_DATA.startName;
-    const room = antPos[i] || SIM_DATA.startName;
-    const col = getAntColor(i);
-    html += '<div class="ant-row"><span class="ant-id" style="color:#' + col.getHexString() + '">L' + i + '</span><span class="ant-room" title="Path: ' + pathStr + '">' + room + '</span></div>';
-  }
-  if (SIM_DATA.antCount > 50) html += '<div style="color:#666;text-align:center;margin-top:4px;">...and ' + (SIM_DATA.antCount - 50) + ' more</div>';
-  antListBody.innerHTML = html;
-}
-updateAntList();
 
 // ---------- TUNNEL TRAFFIC (brightness by usage) ----------
 const tunnelTraffic = {};
@@ -742,243 +1018,160 @@ const tunnelTraffic = {};
   }
 }
 
-// Find max traffic for normalization
 let maxTraffic = 1;
 Object.values(tunnelTraffic).forEach(v => { if (v > maxTraffic) maxTraffic = v; });
 
-// Apply traffic-based brightness to tunnels
-linkObjects.forEach(tube => {
-  const key = tube.userData.from + '-' + tube.userData.to;
+const idleColor = new THREE.Color(0x1a2a3a);
+const activeColor = new THREE.Color(0x4488cc);
+
+linkObjects.forEach(line => {
+  const key = line.userData.from + '-' + line.userData.to;
   const traffic = tunnelTraffic[key] || 0;
-  const intensity = 0.15 + (traffic / maxTraffic) * 0.6;
-  tube.material.emissiveIntensity = intensity;
-  tube.userData.baseEmissiveIntensity = intensity;
-  tube.userData.baseOpacity = 0.5 + (traffic / maxTraffic) * 0.5;
-  tube.material.opacity = tube.userData.baseOpacity;
+  const norm = traffic / maxTraffic;
+  const c = idleColor.clone().lerp(activeColor, norm);
+  const opacity = 0.3 + norm * 0.7;
+  line.material.color.copy(c);
+  line.material.opacity = opacity;
+  line.userData.baseColor = c.getHex();
+  line.userData.baseOpacity = opacity;
 });
 
-btnPlay.addEventListener('click', () => {
-  isPlaying = !isPlaying;
-  btnPlay.innerHTML = isPlaying ? '&#10074;&#10074;' : '&#9654;';
-  btnPlay.classList.toggle('active', isPlaying);
-});
-
-btnRestart.addEventListener('click', () => {
-  currentTurn = 0;
-  turnProgress = 0;
-  animComplete = turns.length === 0;
-  hideAllAnts();
-  clearTrails();
-});
-
-btnPrev.addEventListener('click', () => {
-  if (currentTurn > 0) {
-    currentTurn--;
-    turnProgress = 0;
-    animComplete = false;
-    rebuildAntsToTurn(currentTurn);
+// ---------- FADE IN ----------
+setTimeout(function() {
+  var fi = document.getElementById('fade-in');
+  if (fi) {
+    fi.style.opacity = '0';
+    fi.addEventListener('transitionend', function() { fi.remove(); });
   }
-});
-
-btnNext.addEventListener('click', () => {
-  if (currentTurn < turns.length - 1) {
-    currentTurn++;
-    turnProgress = 0;
-    animComplete = false;
-    rebuildAntsToTurn(currentTurn);
-  }
-});
-
-speedSlider.addEventListener('input', () => {
-  speed = parseFloat(speedSlider.value);
-  speedValue.textContent = speed.toFixed(1) + 'x';
-});
-
-function hideAllAnts() {
-  Object.values(antMeshes).forEach(m => { m.visible = false; });
-}
-
-function clearTrails() {
-  trailParticles.forEach(p => {
-    scene.remove(p);
-    p.geometry.dispose();
-    p.material.dispose();
-  });
-  trailParticles.length = 0;
-}
-
-function rebuildAntsToTurn(targetTurn) {
-  // Reset all ants and replay positions up to targetTurn start
-  hideAllAnts();
-  clearTrails();
-  const antPos = {};
-  for (let t = 0; t < targetTurn; t++) {
-    for (const m of turns[t]) {
-      antPos[m.antId] = m.room;
-    }
-  }
-  // Place ants at their positions
-  for (const [idStr, roomName] of Object.entries(antPos)) {
-    const id = parseInt(idStr);
-    const mesh = getOrCreateAnt(id);
-    const room = roomMap[roomName];
-    if (room && roomName !== SIM_DATA.endName) {
-      mesh.position.copy(room.pos);
-      mesh.visible = true;
-    }
-  }
-}
-
-// ---------- MINIMAP ----------
-const minimapCanvas = document.getElementById('minimap-canvas');
-const mCtx = minimapCanvas.getContext('2d');
-
-function drawMinimap() {
-  mCtx.clearRect(0, 0, 360, 360);
-  mCtx.fillStyle = 'rgba(10,10,20,0.9)';
-  mCtx.fillRect(0, 0, 360, 360);
-
-  if (rooms.length === 0) return;
-
-  // Find bounds (use x, z for top-down)
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  rooms.forEach(r => {
-    const px = r.x - centerX;
-    const pz = r.z - centerZ;
-    if (px < minX) minX = px;
-    if (px > maxX) maxX = px;
-    if (pz < minZ) minZ = pz;
-    if (pz > maxZ) maxZ = pz;
-  });
-
-  const rangeX = maxX - minX || 1;
-  const rangeZ = maxZ - minZ || 1;
-  const pad = 30;
-  const scaleX = (360 - pad * 2) / rangeX;
-  const scaleZ = (360 - pad * 2) / rangeZ;
-  const sc = Math.min(scaleX, scaleZ);
-
-  function toMinimap(x, z) {
-    return {
-      mx: pad + (x - minX) * sc + ((360 - pad * 2) - rangeX * sc) / 2,
-      my: pad + (z - minZ) * sc + ((360 - pad * 2) - rangeZ * sc) / 2
-    };
-  }
-
-  // Draw links
-  mCtx.strokeStyle = 'rgba(85,68,51,0.5)';
-  mCtx.lineWidth = 1;
-  links.forEach(l => {
-    const fr = roomMap[l.from];
-    const tr = roomMap[l.to];
-    if (!fr || !tr) return;
-    const a = toMinimap(fr.pos.x, fr.pos.z);
-    const b = toMinimap(tr.pos.x, tr.pos.z);
-    mCtx.beginPath();
-    mCtx.moveTo(a.mx, a.my);
-    mCtx.lineTo(b.mx, b.my);
-    mCtx.stroke();
-  });
-
-  // Draw rooms
-  rooms.forEach(r => {
-    const px = r.x - centerX;
-    const pz = r.z - centerZ;
-    const { mx, my } = toMinimap(px, pz);
-    mCtx.beginPath();
-    mCtx.arc(mx, my, r.isStart || r.isEnd ? 5 : 3, 0, Math.PI * 2);
-    if (r.isStart) mCtx.fillStyle = '#22cc66';
-    else if (r.isEnd) mCtx.fillStyle = '#cc3333';
-    else mCtx.fillStyle = '#887766';
-    mCtx.fill();
-  });
-
-  // Draw ants on minimap
-  Object.entries(antMeshes).forEach(([idStr, mesh]) => {
-    if (!mesh.visible) return;
-    const { mx, my } = toMinimap(mesh.position.x, mesh.position.z);
-    mCtx.beginPath();
-    mCtx.arc(mx, my, 3, 0, Math.PI * 2);
-    const col = getAntColor(parseInt(idStr));
-    mCtx.fillStyle = '#' + col.getHexString();
-    mCtx.fill();
-  });
-}
+}, 150);
 
 // ---------- MAIN ANIMATION LOOP ----------
 const clock = new THREE.Clock();
 let trailTimer = 0;
+let elapsed = 0;
 
 function animate() {
   requestAnimationFrame(animate);
   const dt = clock.getDelta();
+  elapsed += dt;
 
-  // Dust animation
-  const positions = dustGeom.attributes.position;
-  for (let i = 0; i < dustCount; i++) {
-    positions.array[i * 3 + 1] += Math.sin(Date.now() * 0.001 + i) * 0.002;
-    positions.array[i * 3] += Math.cos(Date.now() * 0.0007 + i * 0.5) * 0.001;
+  // Camera intro + node fly-in animation
+  if (introProgress < 1) {
+    introProgress += dt * 0.4;
+    if (introProgress > 1) {
+      introProgress = 1;
+      controls.enabled = true;
+    }
+    // Circular-out easing (from Particle Globe)
+    const ease = Math.sqrt((2 - introProgress) * introProgress);
+    camera.position.lerpVectors(camStart, camEnd, ease);
+    camera.lookAt(0, 0, 0);
+
+    // Fly-in: lerp room meshes from scatter to final position
+    roomMeshes.forEach(m => {
+      m.position.lerpVectors(m.userData.scatterPos, m.userData.finalPos, ease);
+    });
+
+    // Fade in edges during last 25% of intro
+    if (introProgress > 0.75) {
+      if (!tunnelGroup.visible) tunnelGroup.visible = true;
+      const edgeFade = (introProgress - 0.75) / 0.25;
+      linkObjects.forEach(line => {
+        line.material.opacity = line.userData.baseOpacity * edgeFade;
+      });
+    }
   }
-  positions.needsUpdate = true;
 
-  // Animation logic
-  if (isPlaying && !animComplete && turns.length > 0 && currentTurn < turns.length) {
-    turnProgress += dt * speed * 0.8;  // ~1.25 seconds per turn at 1x
+  // Ant animation (only after intro completes)
+  if (introProgress >= 1 && isPlaying && !animComplete && turns.length > 0 && currentTurn < turns.length) {
+    turnProgress += dt * speed * 0.8;
 
     if (turnProgress >= 1.0) {
-      // Snap ants to final positions for this turn
       snapAntsToTurnEnd(currentTurn);
       currentTurn++;
       turnProgress = 0;
 
       if (currentTurn >= turns.length) {
         animComplete = true;
-        // Hide ants that reached the end
         hideFinishedAnts();
       }
     } else {
-      // Interpolate ant positions
       animateAntsInTurn(currentTurn, turnProgress);
     }
   }
 
-  // Trail fade
-  updateTrails(dt);
-
-  // Trail spawning
+  // Trail fade + spawn
+  fadeTrails(dt);
   trailTimer += dt;
   if (trailTimer > 0.05) {
     trailTimer = 0;
+    const endBound = new Set();
+    if (currentTurn < turnAnimations.length) {
+      for (const a of turnAnimations[currentTurn]) {
+        if (a.toName === SIM_DATA.endName) endBound.add(a.antId);
+      }
+    }
     Object.entries(antMeshes).forEach(([idStr, mesh]) => {
-      if (mesh.visible) {
-        addTrailPoint(mesh.position.clone(), getAntColor(parseInt(idStr)));
+      const id = parseInt(idStr);
+      if (mesh.visible && antCurrentRoom[id] !== SIM_DATA.endName && !endBound.has(id)) {
+        addTrailSample(id, mesh.position);
       }
     });
   }
 
-  // Pulse highlighted paths
+  // Node pulses
+  updatePulses(dt);
+
+  // Arrival bursts
+  updateBursts(dt);
+
+  // Orbital ring rotation
+  orbitalRings.forEach((ring, i) => {
+    ring.rotation.z += dt * (0.3 + i * 0.15);
+  });
+
+  // Ambient particle drift
+  const pArr = ambientParticles.geometry.attributes.position.array;
+  const halfSpread = pSpread * 0.5;
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const v = pVelocities[i];
+    pArr[i * 3] += v.vx * dt;
+    pArr[i * 3 + 1] += v.vy * dt + Math.sin(elapsed + v.phase) * 0.005;
+    pArr[i * 3 + 2] += v.vz * dt;
+    for (let j = 0; j < 3; j++) {
+      if (pArr[i * 3 + j] > halfSpread) pArr[i * 3 + j] -= pSpread;
+      if (pArr[i * 3 + j] < -halfSpread) pArr[i * 3 + j] += pSpread;
+    }
+  }
+  ambientParticles.geometry.attributes.position.needsUpdate = true;
+
+  // Pulse highlighted edges
   if (isPulsing) {
     const pulse = 0.7 + Math.sin(Date.now() * 0.005) * 0.3;
-    linkObjects.forEach(tube => {
-      const key = tube.userData.from + '-' + tube.userData.to;
+    linkObjects.forEach(line => {
+      const key = line.userData.from + '-' + line.userData.to;
       if (highlightedTunnelKeys.has(key)) {
-        tube.material.emissiveIntensity = 0.6 + pulse * 0.4;
+        line.material.opacity = pulse;
       }
     });
   }
 
-  // Update ant list periodically
-  if (Math.floor(Date.now() / 500) !== Math.floor((Date.now() - 16) / 500)) updateAntList();
+  // Completion mode pulse on used edges
+  if (completionMode) {
+    const cPulse = 0.7 + Math.sin(elapsed * 1.5) * 0.3;
+    linkObjects.forEach(line => {
+      const key = line.userData.from + '-' + line.userData.to;
+      if (tunnelTraffic[key]) line.material.opacity = cPulse;
+    });
+  }
 
-  // Update turn display
+  // Update turn display + timeline slider
   const displayTurn = animComplete ? turns.length : currentTurn + (turns.length > 0 ? 1 : 0);
   turnValue.textContent = displayTurn + ' / ' + turns.length;
+  timelineSlider.value = animComplete ? turns.length : currentTurn;
 
   controls.update();
-  renderer.render(scene, camera);
-
-  // Minimap at reduced framerate
-  if (Math.floor(Date.now() / 100) % 2 === 0) drawMinimap();
+  composer.render();
 }
 
 function animateAntsInTurn(turnIdx, progress) {
@@ -1001,11 +1194,15 @@ function snapAntsToTurnEnd(turnIdx) {
     const mesh = getOrCreateAnt(anim.antId);
     mesh.position.copy(anim.toPos);
     mesh.visible = true;
+    antCurrentRoom[anim.antId] = anim.toName;
+    pulseRoom(anim.toName);
+    if (anim.toName === SIM_DATA.endName) {
+      triggerBurst(anim.toPos, getAntColor(anim.antId));
+    }
   }
 }
 
 function hideFinishedAnts() {
-  // Build final positions
   const finalRoom = {};
   for (let t = 0; t < turns.length; t++) {
     for (const m of turns[t]) {
@@ -1018,6 +1215,7 @@ function hideFinishedAnts() {
       if (mesh) mesh.visible = false;
     }
   });
+  showCompletionHighlight();
 }
 
 // ---------- RESIZE ----------
@@ -1025,6 +1223,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
 
 // Start
