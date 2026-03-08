@@ -11,3 +11,4 @@ parse_stream.js
 specs/
 audit/
 CLAUDE.md
+cmd/visualizer-web/base.glb
