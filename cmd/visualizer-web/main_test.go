@@ -132,7 +132,7 @@ func TestBuildJSONData_BasicInput(t *testing.T) {
 		}
 	}
 
-	// Verify scaling: X and Z use scale=4.0, Y uses depth*scale*1.5
+	// Verify scaling: Y uses depth*ySpacing (3.8)
 	// start is at depth 0, mid at depth 1, end at depth 2
 	for _, r := range data.Rooms {
 		if r.Name == "start" {
@@ -141,7 +141,7 @@ func TestBuildJSONData_BasicInput(t *testing.T) {
 			}
 		}
 		if r.Name == "mid" {
-			wantY := 1.0 * 4.0 * 1.5
+			wantY := 1.0 * 3.8
 			if r.Y != wantY {
 				t.Errorf("mid Y = %f, want %f", r.Y, wantY)
 			}
@@ -172,7 +172,7 @@ func TestBuildJSONData_ErrorInput(t *testing.T) {
 
 func TestBuildHTML_ContainsEmbeddedData(t *testing.T) {
 	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
-	html := buildHTML(jsonStr)
+	html := buildHTML(jsonStr, "")
 
 	if !strings.Contains(html, "<!DOCTYPE html>") {
 		t.Error("HTML missing DOCTYPE")
@@ -185,6 +185,12 @@ func TestBuildHTML_ContainsEmbeddedData(t *testing.T) {
 	}
 	if !strings.Contains(html, "SIM_DATA") {
 		t.Error("HTML missing SIM_DATA variable")
+	}
+	if !strings.Contains(html, "GLTFLoader") {
+		t.Error("HTML missing GLTFLoader reference")
+	}
+	if !strings.Contains(html, "COLONY_MODEL_GZ_B64") {
+		t.Error("HTML missing colony model data variable")
 	}
 }
 
