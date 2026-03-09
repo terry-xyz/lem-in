@@ -479,23 +479,60 @@ var roomPosArray = [];
 rooms.forEach(function(r) { roomPosArray.push(roomMap[r.name].pos.clone()); });
 var maxRooms = Math.max(roomPosArray.length, 1);
 
-// Apply materials with cave-darkening fragment shader
+// Apply materials with per-vertex cave darkening
+var caveR = 3.0;
 colony.traverse(function(child) {
   if (child.isMesh) {
-    // Vertex colors for base pedestal only
     if (child.geometry && child.geometry.attributes.position) {
       var pos = child.geometry.attributes.position;
+      var norm = child.geometry.attributes.normal;
       var colors = new Float32Array(pos.count * 3);
       var colonyColor = new THREE.Color(0xccc8c0);
       var blackColor = new THREE.Color(0x111111);
       var v = new THREE.Vector3();
+      var n = new THREE.Vector3();
+      var normalMatrix = new THREE.Matrix3().getNormalMatrix(child.matrixWorld);
+
       for (var vi = 0; vi < pos.count; vi++) {
         v.set(pos.getX(vi), pos.getY(vi), pos.getZ(vi));
         v.applyMatrix4(child.matrixWorld);
         var c = v.y <= baseThresholdWorld ? blackColor : colonyColor;
-        colors[vi * 3] = c.r;
-        colors[vi * 3 + 1] = c.g;
-        colors[vi * 3 + 2] = c.b;
+
+        if (v.y > baseThresholdWorld && norm) {
+          n.set(norm.getX(vi), norm.getY(vi), norm.getZ(vi));
+          n.applyMatrix3(normalMatrix).normalize();
+
+          var maxDark = 0;
+          for (var ri = 0; ri < roomPosArray.length; ri++) {
+            var rp = roomPosArray[ri];
+            var dx = v.x - rp.x, dy = v.y - rp.y, dz = v.z - rp.z;
+            if (Math.abs(dy) > 2.0) continue;
+            var dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            if (dist > caveR || dist < 0.01) continue;
+
+            // Direction from vertex to room (captures ceilings/floors too)
+            var toRX = -dx/dist, toRY = -dy/dist, toRZ = -dz/dist;
+            var facing = n.x*toRX + n.y*toRY + n.z*toRZ;
+            if (facing < 0.2) continue;
+
+            var facingMask = Math.min((facing - 0.2) / 0.4, 1.0);
+            var distInf = 1.0 - dist / caveR;
+
+            // Depth: vertices closer to room center are deeper in cave
+            var depthFactor = distInf * distInf; // quadratic — shallow=faint, deep=strong
+            var dark = facingMask * depthFactor;
+            if (dark > maxDark) maxDark = dark;
+          }
+
+          var f = 1.0 - maxDark;
+          colors[vi*3] = c.r * f;
+          colors[vi*3+1] = c.g * f;
+          colors[vi*3+2] = c.b * f;
+        } else {
+          colors[vi*3] = c.r;
+          colors[vi*3+1] = c.g;
+          colors[vi*3+2] = c.b;
+        }
       }
       child.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     }
@@ -511,46 +548,15 @@ colony.traverse(function(child) {
       sheenColor: new THREE.Color(0xffffff)
     });
 
-    // Inject cave darkening into the fragment shader (pixel-level precision)
-    // Uses surface normal to only darken interior/concave faces (cave walls)
+    // Aggressively dim ALL light in dark cave areas (overcomes clearcoat/env washout)
     mat.onBeforeCompile = function(shader) {
-      shader.uniforms.uRoomPos = { value: roomPosArray };
-      shader.uniforms.uInfluenceR = { value: 2.5 };
-
-      // Pass world position AND world normal from vertex to fragment shader
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <common>',
-        'varying vec3 vCaveWorldPos;\nvarying vec3 vCaveWorldNormal;\n#include <common>'
-      );
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <fog_vertex>',
-        '#include <fog_vertex>\n' +
-        'vCaveWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\n' +
-        'vCaveWorldNormal = normalize((modelMatrix * vec4(objectNormal, 0.0)).xyz);'
-      );
-
-      // In fragment shader: darken only interior-facing pixels near room positions
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <common>',
-        'varying vec3 vCaveWorldPos;\n' +
-        'varying vec3 vCaveWorldNormal;\n' +
-        'uniform vec3 uRoomPos[' + maxRooms + '];\n' +
-        'uniform float uInfluenceR;\n' +
-        '#include <common>'
-      );
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <dithering_fragment>',
-        'float caveDark = 0.0;\n' +
-        'for (int i = 0; i < ' + maxRooms + '; i++) {\n' +
-        '  float d = distance(vCaveWorldPos, uRoomPos[i]);\n' +
-        '  float inf = 1.0 - clamp(d / uInfluenceR, 0.0, 1.0);\n' +
-        '  inf *= inf;\n' +
-        '  vec3 toRoom = normalize(uRoomPos[i] - vCaveWorldPos);\n' +
-        '  float facing = dot(vCaveWorldNormal, toRoom);\n' +
-        '  float facingMask = smoothstep(0.0, 0.35, facing);\n' +
-        '  caveDark = max(caveDark, inf * facingMask);\n' +
-        '}\n' +
-        'gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.05, 0.03, 0.02), caveDark * 0.9);\n' +
+        'float vBright = (vColor.r + vColor.g + vColor.b) / 3.0;\n' +
+        'float isBase = step(vBright, 0.08);\n' +
+        'float darkAmt = smoothstep(0.72, 0.20, vBright);\n' +
+        'float dimFactor = mix(1.0, 0.04, darkAmt * darkAmt);\n' +
+        'gl_FragColor.rgb *= mix(dimFactor, 1.0, isBase);\n' +
         '#include <dithering_fragment>'
       );
     };
