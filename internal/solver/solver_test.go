@@ -7,7 +7,7 @@ import (
 	"lem-in/internal/parser"
 )
 
-// helper to build a Colony without reading a file.
+// makeColony builds a parser.Colony in memory so solver tests can focus on path behavior instead of file parsing.
 func makeColony(antCount int, rooms []parser.Room, startName, endName string, links [][2]string) *parser.Colony {
 	rm := make(map[string]int, len(rooms))
 	for i, r := range rooms {
@@ -370,8 +370,8 @@ func TestAuditExample04(t *testing.T) {
 // TestDistributeSingleAntUnequalPaths verifies a single ant goes to the shortest path.
 func TestDistributeSingleAntUnequalPaths(t *testing.T) {
 	paths := []Path{
-		{Rooms: []string{"start", "A", "end"}},       // length 2
-		{Rooms: []string{"start", "B", "C", "end"}},  // length 3
+		{Rooms: []string{"start", "A", "end"}},      // length 2
+		{Rooms: []string{"start", "B", "C", "end"}}, // length 3
 	}
 
 	counts, assignments := DistributeAnts(paths, 1)
@@ -393,8 +393,8 @@ func TestDistributeSingleAntUnequalPaths(t *testing.T) {
 // TestDistributeUnequalLengths verifies distribution with paths of different lengths.
 func TestDistributeUnequalLengths(t *testing.T) {
 	paths := []Path{
-		{Rooms: []string{"start", "A", "end"}},          // length 2
-		{Rooms: []string{"start", "B", "C", "end"}},     // length 3
+		{Rooms: []string{"start", "A", "end"}},           // length 2
+		{Rooms: []string{"start", "B", "C", "end"}},      // length 3
 		{Rooms: []string{"start", "D", "E", "F", "end"}}, // length 4
 	}
 
@@ -436,8 +436,8 @@ func TestDistributeZeroPaths(t *testing.T) {
 // TestDistributeAntIDOrdering verifies lower IDs are assigned to shorter paths.
 func TestDistributeAntIDOrdering(t *testing.T) {
 	paths := []Path{
-		{Rooms: []string{"start", "A", "end"}},       // length 2 (short)
-		{Rooms: []string{"start", "B", "C", "end"}},  // length 3 (long)
+		{Rooms: []string{"start", "A", "end"}},      // length 2 (short)
+		{Rooms: []string{"start", "B", "C", "end"}}, // length 3 (long)
 	}
 
 	_, assignments := DistributeAnts(paths, 5)

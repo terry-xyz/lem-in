@@ -178,6 +178,7 @@ func computeTurns(paths []Path, antCount int) int {
 	return lk - 1 + ceilDiv(remaining, k)
 }
 
+// ceilDiv rounds a positive division up so partial ant batches still count as a full turn.
 func ceilDiv(a, b int) int {
 	return (a + b - 1) / b
 }

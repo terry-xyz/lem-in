@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TestParseOutput_Example00 verifies the formatter reconstructs rooms, links, turns, and start/end markers from canonical solver output.
 func TestParseOutput_Example00(t *testing.T) {
 	output := `4
 ##start
@@ -59,6 +60,7 @@ L4-1`
 	}
 }
 
+// TestParseOutput_RoomCoordinates verifies room coordinates survive parsing unchanged.
 func TestParseOutput_RoomCoordinates(t *testing.T) {
 	output := `1
 ##start
@@ -85,6 +87,7 @@ L1-B`
 	}
 }
 
+// TestParseOutput_ErrorPrefix verifies solver error output is preserved as an error payload instead of parsed as map data.
 func TestParseOutput_ErrorPrefix(t *testing.T) {
 	output := "ERROR: invalid data format, invalid number of Ants"
 	parsed, err := ParseOutput(output)
@@ -99,6 +102,7 @@ func TestParseOutput_ErrorPrefix(t *testing.T) {
 	}
 }
 
+// TestParseOutput_NoSeparator verifies outputs without the blank file-data separator are rejected.
 func TestParseOutput_NoSeparator(t *testing.T) {
 	output := "4\n##start\n0 0 3"
 	_, err := ParseOutput(output)
@@ -107,6 +111,7 @@ func TestParseOutput_NoSeparator(t *testing.T) {
 	}
 }
 
+// TestParseOutput_EmptyFileContent verifies an empty map section is rejected before move parsing begins.
 func TestParseOutput_EmptyFileContent(t *testing.T) {
 	output := "\nL1-A"
 	_, err := ParseOutput(output)
@@ -115,6 +120,7 @@ func TestParseOutput_EmptyFileContent(t *testing.T) {
 	}
 }
 
+// TestParseOutput_NoMoveLines verifies the parser rejects degenerate output where trimming removes the move section entirely.
 func TestParseOutput_NoMoveLines(t *testing.T) {
 	// When trailing newlines are trimmed and no moves follow the separator,
 	// the separator itself gets trimmed. This is an edge case: real solver
@@ -127,6 +133,7 @@ func TestParseOutput_NoMoveLines(t *testing.T) {
 	}
 }
 
+// TestParseOutput_SingleMoveLine verifies one move line becomes one parsed turn with the expected ant and destination.
 func TestParseOutput_SingleMoveLine(t *testing.T) {
 	output := "1\n##start\nA 0 0\n##end\nB 1 1\nA-B\n\nL1-B"
 	parsed, err := ParseOutput(output)
@@ -144,6 +151,7 @@ func TestParseOutput_SingleMoveLine(t *testing.T) {
 	}
 }
 
+// TestParseOutput_MultipleMovesPerTurn verifies multiple move tokens on one line stay grouped into a single turn.
 func TestParseOutput_MultipleMovesPerTurn(t *testing.T) {
 	output := "3\n##start\nA 0 0\n##end\nB 1 1\nA-B\n\nL1-B L2-B L3-B"
 	parsed, err := ParseOutput(output)
@@ -166,6 +174,7 @@ func TestParseOutput_MultipleMovesPerTurn(t *testing.T) {
 	}
 }
 
+// TestParseOutput_CommentsIgnored verifies single-`#` comments in the echoed map do not create fake rooms or links.
 func TestParseOutput_CommentsIgnored(t *testing.T) {
 	output := "1\n#comment\n##start\nA 0 0\n##end\nB 1 1\nA-B\n\nL1-B"
 	parsed, err := ParseOutput(output)
@@ -177,6 +186,7 @@ func TestParseOutput_CommentsIgnored(t *testing.T) {
 	}
 }
 
+// TestParseOutput_ExtraWhitespace verifies leading and trailing whitespace around move lines is ignored.
 func TestParseOutput_ExtraWhitespace(t *testing.T) {
 	output := "1\n##start\nA 0 0\n##end\nB 1 1\nA-B\n\n  L1-B  "
 	parsed, err := ParseOutput(output)
@@ -191,6 +201,7 @@ func TestParseOutput_ExtraWhitespace(t *testing.T) {
 	}
 }
 
+// TestParseOutput_LinksExtracted verifies tunnel lines from the echoed map are preserved in order.
 func TestParseOutput_LinksExtracted(t *testing.T) {
 	output := "1\n##start\nA 0 0\nC 1 1\n##end\nB 2 2\nA-C\nC-B\n\nL1-C\nL1-B"
 	parsed, err := ParseOutput(output)
@@ -208,6 +219,7 @@ func TestParseOutput_LinksExtracted(t *testing.T) {
 	}
 }
 
+// TestParseOutput_AllAuditExamples verifies the parser handles representative solver output from multiple bundled examples.
 func TestParseOutput_AllAuditExamples(t *testing.T) {
 	// Verify the format parser correctly handles representative output for each example.
 	// Each case includes the input section and at least one move line.
@@ -263,6 +275,7 @@ func TestParseOutput_AllAuditExamples(t *testing.T) {
 	}
 }
 
+// TestParseOutput_WindowsLineEndings verifies CRLF solver output is normalized before parsing.
 func TestParseOutput_WindowsLineEndings(t *testing.T) {
 	output := "1\r\n##start\r\nA 0 0\r\n##end\r\nB 1 1\r\nA-B\r\n\r\nL1-B"
 	parsed, err := ParseOutput(output)
@@ -274,6 +287,7 @@ func TestParseOutput_WindowsLineEndings(t *testing.T) {
 	}
 }
 
+// TestParseOutput_IntegrationWithSolver verifies parsed turn data still shows every ant finishing at the end room.
 func TestParseOutput_IntegrationWithSolver(t *testing.T) {
 	// Full end-to-end: parse actual solver output for example00
 	output := strings.Join([]string{

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// helper writes content to a temp file and returns its path.
+// writeTemp writes test content to a temporary file and returns the path so parser cases can reuse the same setup.
 func writeTemp(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -20,6 +20,7 @@ func writeTemp(t *testing.T, content string) string {
 
 // ---------- 1. Valid parsing of real example files ----------
 
+// TestParse_Example00 verifies the parser reproduces the expected rooms, links, and room index map for the simplest bundled example.
 func TestParse_Example00(t *testing.T) {
 	c, err := Parse("../../examples/example00.txt")
 	if err != nil {
@@ -78,6 +79,7 @@ func TestParse_Example00(t *testing.T) {
 
 // ---------- 2. ##start not on first room line (example03) ----------
 
+// TestParse_Example03 verifies command markers apply to the next room line rather than the next non-empty line number.
 func TestParse_Example03(t *testing.T) {
 	c, err := Parse("../../examples/example03.txt")
 	if err != nil {
@@ -104,6 +106,7 @@ func TestParse_Example03(t *testing.T) {
 
 // ---------- 3. File with #rooms comment (example05) ----------
 
+// TestParse_Example05 verifies regular comment lines are preserved verbatim in `Lines` while the parser still builds the colony correctly.
 func TestParse_Example05(t *testing.T) {
 	c, err := Parse("../../examples/example05.txt")
 	if err != nil {
@@ -135,6 +138,7 @@ func TestParse_Example05(t *testing.T) {
 
 // ---------- 4. Ant count validation ----------
 
+// TestParse_AntCount verifies invalid first-line ant counts are rejected with a consistent parser error.
 func TestParse_AntCount(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -178,6 +182,7 @@ func TestParse_AntCount(t *testing.T) {
 }
 
 // badexample00 has 0 ants
+// TestParse_BadExample00 verifies the bundled zero-ant example is rejected.
 func TestParse_BadExample00(t *testing.T) {
 	_, err := Parse("../../examples/badexample00.txt")
 	if err == nil {
@@ -190,6 +195,7 @@ func TestParse_BadExample00(t *testing.T) {
 
 // ---------- 5. Room validation ----------
 
+// TestParse_RoomValidation verifies malformed room names and coordinates fail before graph construction.
 func TestParse_RoomValidation(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -252,6 +258,7 @@ func TestParse_RoomValidation(t *testing.T) {
 
 // ---------- 6. Link validation ----------
 
+// TestParse_LinkValidation verifies self-links, duplicate links, and unknown-room links are rejected.
 func TestParse_LinkValidation(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -295,6 +302,7 @@ func TestParse_LinkValidation(t *testing.T) {
 }
 
 // badexample01 has self-link 3-3
+// TestParse_BadExample01 verifies the bundled self-link example is rejected with the standard parser prefix.
 func TestParse_BadExample01(t *testing.T) {
 	_, err := Parse("../../examples/badexample01.txt")
 	if err == nil {
@@ -307,6 +315,7 @@ func TestParse_BadExample01(t *testing.T) {
 
 // ---------- 7. Command handling ----------
 
+// TestParse_CommandHandling verifies `##start` and `##end` follow the lem-in placement rules and remain unique.
 func TestParse_CommandHandling(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -366,6 +375,7 @@ func TestParse_CommandHandling(t *testing.T) {
 
 // ---------- 8. Unknown ## commands ignored ----------
 
+// TestParse_UnknownDoubleHashIgnored verifies unsupported double-hash commands are ignored instead of breaking parsing.
 func TestParse_UnknownDoubleHashIgnored(t *testing.T) {
 	content := "1\n##start\nA 0 0\n##end\nB 1 1\n##foobar\n##anything\nA-B\n"
 	path := writeTemp(t, content)
@@ -390,6 +400,7 @@ func TestParse_UnknownDoubleHashIgnored(t *testing.T) {
 
 // ---------- 9. Comments preserved in Lines ----------
 
+// TestParse_CommentsPreservedInLines verifies single-hash comments survive in the echoed input lines.
 func TestParse_CommentsPreservedInLines(t *testing.T) {
 	content := "2\n#this is a comment\n##start\nA 0 0\n##end\nB 1 1\n#link section\nA-B\n"
 	path := writeTemp(t, content)
@@ -420,6 +431,7 @@ func TestParse_CommentsPreservedInLines(t *testing.T) {
 
 // ---------- 10. File not found ----------
 
+// TestParse_FileNotFound verifies unreadable files surface the parser's file-read error message.
 func TestParse_FileNotFound(t *testing.T) {
 	_, err := Parse("/nonexistent/path/file.txt")
 	if err == nil {
@@ -432,6 +444,7 @@ func TestParse_FileNotFound(t *testing.T) {
 
 // ---------- 11. Additional room validation edge cases ----------
 
+// TestParse_RoomNameWithDash verifies room names containing dashes are rejected before they can be mistaken for links.
 func TestParse_RoomNameWithDash(t *testing.T) {
 	content := "1\n##start\nmy-room 0 0\n##end\nB 1 1\nmy-room-B\n"
 	path := writeTemp(t, content)
@@ -444,6 +457,7 @@ func TestParse_RoomNameWithDash(t *testing.T) {
 	}
 }
 
+// TestParse_EmptyRoomName verifies malformed room lines without a usable name still fail with a parser error.
 func TestParse_EmptyRoomName(t *testing.T) {
 	// A line like " 0 0" where the room name is empty after Fields split
 	// won't produce an empty name via Fields (it splits on whitespace),
@@ -461,6 +475,7 @@ func TestParse_EmptyRoomName(t *testing.T) {
 	}
 }
 
+// TestParse_AntCountExceedsLimit verifies the parser enforces the configured ant-count ceiling.
 func TestParse_AntCountExceedsLimit(t *testing.T) {
 	content := "99999999\n##start\nA 0 0\n##end\nB 1 1\nA-B\n"
 	path := writeTemp(t, content)
@@ -475,6 +490,7 @@ func TestParse_AntCountExceedsLimit(t *testing.T) {
 
 // ---------- Additional edge cases ----------
 
+// TestParse_MinimalValid verifies the smallest valid colony with one start-end tunnel parses successfully.
 func TestParse_MinimalValid(t *testing.T) {
 	content := "1\n##start\nA 0 0\n##end\nB 1 1\nA-B\n"
 	path := writeTemp(t, content)
@@ -500,6 +516,7 @@ func TestParse_MinimalValid(t *testing.T) {
 	}
 }
 
+// TestParse_AllErrorsPrefixed verifies every parser failure uses the required `ERROR: invalid data format, ` prefix.
 func TestParse_AllErrorsPrefixed(t *testing.T) {
 	// Every error from the parser must start with "ERROR: invalid data format, "
 	badInputs := []string{
@@ -531,6 +548,7 @@ func TestParse_AllErrorsPrefixed(t *testing.T) {
 
 // ---------- 12. Additional edge case coverage ----------
 
+// TestParse_RoomNameWithSpace verifies room names containing spaces are rejected as invalid room data.
 func TestParse_RoomNameWithSpace(t *testing.T) {
 	// "my room 0 0" splits into 4 fields, so parseRoom rejects it as invalid data
 	content := "1\n##start\nmy room 0 0\n##end\nB 1 1\nmy room-B\n"
@@ -544,6 +562,7 @@ func TestParse_RoomNameWithSpace(t *testing.T) {
 	}
 }
 
+// TestParse_BlankLinesHandledGracefully verifies blank lines do not break otherwise valid room and link parsing.
 func TestParse_BlankLinesHandledGracefully(t *testing.T) {
 	// Blank lines interspersed between rooms and links should be ignored
 	content := "1\n\n##start\nA 0 0\n\n##end\nB 1 1\n\nA-B\n"
@@ -566,6 +585,7 @@ func TestParse_BlankLinesHandledGracefully(t *testing.T) {
 	}
 }
 
+// TestParse_CommentBetweenCommandAndRoom verifies comments between a command and its room do not cancel the pending marker.
 func TestParse_CommentBetweenCommandAndRoom(t *testing.T) {
 	// ##start followed by a comment, then the room definition -- should succeed
 	content := "1\n##start\n#this is a comment\nA 0 0\n##end\nB 1 1\nA-B\n"
@@ -582,6 +602,7 @@ func TestParse_CommentBetweenCommandAndRoom(t *testing.T) {
 	}
 }
 
+// TestParse_MultipleErrorsOneReported verifies the parser returns one concrete error instead of concatenating several failures.
 func TestParse_MultipleErrorsOneReported(t *testing.T) {
 	// Input has multiple problems: 0 ants AND missing ##end AND duplicate room
 	content := "0\n##start\nA 0 0\nA 1 1\n"
@@ -598,6 +619,7 @@ func TestParse_MultipleErrorsOneReported(t *testing.T) {
 	}
 }
 
+// TestParse_BlankFirstLine verifies a leading blank line fails ant-count parsing immediately.
 func TestParse_BlankFirstLine(t *testing.T) {
 	// First line is blank -- should fail to parse ant count
 	content := "\n1\n##start\nA 0 0\n##end\nB 1 1\nA-B\n"
@@ -611,6 +633,7 @@ func TestParse_BlankFirstLine(t *testing.T) {
 	}
 }
 
+// TestParse_MaxAntsBoundary verifies exactly the maximum ant count is accepted while the next value is rejected.
 func TestParse_MaxAntsBoundary(t *testing.T) {
 	// Exactly 10,000,000 should succeed
 	content := "10000000\n##start\nA 0 0\n##end\nB 1 1\nA-B\n"
@@ -678,6 +701,7 @@ func TestParse_StartEndStacking(t *testing.T) {
 	}
 }
 
+// TestParse_LinesSliceMatchesInput verifies `Lines` preserves the normalized input file verbatim and in order.
 func TestParse_LinesSliceMatchesInput(t *testing.T) {
 	content := "3\n##start\nA 0 0\n##end\nB 1 1\nA-B"
 	path := writeTemp(t, content)

@@ -29,6 +29,7 @@ func Parse(filename string) (*Colony, error) {
 	return parseLines(lines)
 }
 
+// parseLines walks normalized input lines once, building rooms and links while enforcing lem-in command ordering rules.
 func parseLines(lines []string) (*Colony, error) {
 	if len(lines) == 0 {
 		return nil, fmt.Errorf("ERROR: invalid data format, invalid number of ants")
@@ -214,6 +215,7 @@ func isLink(line string) bool {
 	return true
 }
 
+// parseRoom parses a single room definition line and rejects names or coordinates that cannot belong to a room.
 func parseRoom(line string) (Room, error) {
 	parts := strings.Fields(line)
 	if len(parts) != 3 {

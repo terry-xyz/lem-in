@@ -10,6 +10,7 @@ import (
 	"lem-in/internal/solver"
 )
 
+// TestSimulate_SinglePath verifies repeated launches on one path produce the expected number of turns and a valid final state.
 func TestSimulate_SinglePath(t *testing.T) {
 	paths := []solver.Path{{Rooms: []string{"start", "A", "end"}}}
 	assignments := []solver.AntAssignment{
@@ -28,6 +29,7 @@ func TestSimulate_SinglePath(t *testing.T) {
 	validateOutput(t, lines, 3, "end", paths)
 }
 
+// TestSimulate_TwoPaths verifies ants can be simulated correctly when assignments span a direct path and a longer path.
 func TestSimulate_TwoPaths(t *testing.T) {
 	paths := []solver.Path{
 		{Rooms: []string{"start", "end"}},      // length 1
@@ -43,6 +45,7 @@ func TestSimulate_TwoPaths(t *testing.T) {
 	validateOutput(t, lines, 3, "end", paths)
 }
 
+// TestSimulate_OutputFormat verifies every emitted move token keeps the required `L<id>-<room>` shape.
 func TestSimulate_OutputFormat(t *testing.T) {
 	paths := []solver.Path{{Rooms: []string{"start", "mid", "end"}}}
 	assignments := []solver.AntAssignment{
@@ -63,6 +66,7 @@ func TestSimulate_OutputFormat(t *testing.T) {
 	}
 }
 
+// TestSimulate_AntIDOrdering verifies each printed turn lists moves in ascending ant-ID order.
 func TestSimulate_AntIDOrdering(t *testing.T) {
 	paths := []solver.Path{
 		{Rooms: []string{"start", "A", "end"}},

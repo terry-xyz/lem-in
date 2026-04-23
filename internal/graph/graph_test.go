@@ -6,7 +6,7 @@ import (
 	"lem-in/internal/parser"
 )
 
-// helper to build a Colony without reading a file.
+// makeColony builds a parser.Colony in memory so graph tests do not need fixture files.
 func makeColony(antCount int, rooms []parser.Room, startName, endName string, links [][2]string) *parser.Colony {
 	rm := make(map[string]int, len(rooms))
 	for i, r := range rooms {
