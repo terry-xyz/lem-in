@@ -8,6 +8,14 @@ import (
 	"lem-in/internal/format"
 )
 
+func assertContainsBlock(t *testing.T, html, block string) {
+	t.Helper()
+
+	if !strings.Contains(html, block) {
+		t.Fatalf("HTML missing block:\n%s", block)
+	}
+}
+
 func TestBfsDepth_LinearGraph(t *testing.T) {
 	rooms := []format.ParsedRoom{
 		{Name: "A", X: 0, Y: 0, IsStart: true},
@@ -257,6 +265,106 @@ func TestBuildHTML_ShowColonyToggleMarkupAndHooks(t *testing.T) {
 	}
 }
 
+func TestBuildHTML_AutoRotateToggleMarkupAndHooks(t *testing.T) {
+	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
+	html := buildHTML(jsonStr, "")
+
+	required := []string{
+		`id="auto-rotate-toggle-wrap"`,
+		`id="btn-auto-rotate"`,
+		`aria-pressed="true"`,
+		`AUTO-ROTATE: YES`,
+		`var autoRotateEnabled = true;`,
+		`var btnAutoRotate = document.getElementById('btn-auto-rotate');`,
+		`var btnAutoRotateText = document.getElementById('btn-auto-rotate-text');`,
+		`function applyAutoRotateState()`,
+		`btnAutoRotate.addEventListener('click', function() {`,
+		`autoRotateEnabled = !autoRotateEnabled;`,
+		`applyAutoRotateState();`,
+		`controls.autoRotate = autoRotateEnabled;`,
+	}
+	for _, snippet := range required {
+		if !strings.Contains(html, snippet) {
+			t.Errorf("HTML missing auto rotate snippet %q", snippet)
+		}
+	}
+
+	assertContainsBlock(t, html, `function applyAutoRotateState() {
+  controls.autoRotate = autoRotateEnabled;
+  btnAutoRotate.setAttribute('aria-pressed', autoRotateEnabled ? 'true' : 'false');
+  btnAutoRotateText.textContent = autoRotateEnabled ? 'AUTO-ROTATE: YES' : 'AUTO-ROTATE: OFF';
+}`)
+
+	assertContainsBlock(t, html, `btnAutoRotate.addEventListener('click', function() {
+  autoRotateEnabled = !autoRotateEnabled;
+  applyAutoRotateState();
+});`)
+
+	assertContainsBlock(t, html, `@media (max-width: 820px) {
+  #auto-rotate-toggle-wrap{left:16px;bottom:82px}
+}`)
+}
+
+func TestBuildHTML_ShowColonyToggleRestoresLegacyCameraAndGuardedRecovery(t *testing.T) {
+	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
+	html := buildHTML(jsonStr, "")
+
+	required := []string{
+		`var initialCameraPosition = camera.position.clone();`,
+		`var initialControlsTarget = controls.target.clone();`,
+		`var cameraResetActive = false;`,
+		`var cameraResetDuration = 0.6;`,
+		`function startCameraResetToOpeningView()`,
+		`btnShowColony.addEventListener('click', function() {`,
+		`showColony = !showColony;`,
+		`applyColonyVisibility();`,
+		`if (showColony && camera.position.y < groundY) {`,
+		`startCameraResetToOpeningView();`,
+		`if (showColony && !cameraResetActive) {`,
+		`camera.position.y = Math.max(camera.position.y, groundY + cameraFloorOffset);`,
+		`if (cameraResetActive) {`,
+		`camera.position.lerpVectors(cameraResetFromPosition, initialCameraPosition, resetT);`,
+		`controls.target.lerpVectors(cameraResetFromTarget, initialControlsTarget, resetT);`,
+	}
+	for _, snippet := range required {
+		if !strings.Contains(html, snippet) {
+			t.Errorf("HTML missing camera recovery snippet %q", snippet)
+		}
+	}
+
+	assertContainsBlock(t, html, `function startCameraResetToOpeningView() {
+  cameraResetActive = true;
+  cameraResetElapsed = 0;
+  cameraResetFromPosition.copy(camera.position);
+  cameraResetFromTarget.copy(controls.target);
+}`)
+
+	assertContainsBlock(t, html, `btnShowColony.addEventListener('click', function() {
+  showColony = !showColony;
+  applyColonyVisibility();
+  if (!showColony) cameraResetActive = false;
+  if (showColony && camera.position.y < groundY) {
+    startCameraResetToOpeningView();
+  }
+});`)
+
+	assertContainsBlock(t, html, `if (cameraResetActive) {
+  cameraResetElapsed += dt;
+  var resetT = Math.min(cameraResetElapsed / cameraResetDuration, 1.0);
+  resetT = resetT < 0.5 ? 4 * resetT * resetT * resetT : 1 - Math.pow(-2 * resetT + 2, 3) / 2;
+  camera.position.lerpVectors(cameraResetFromPosition, initialCameraPosition, resetT);
+  controls.target.lerpVectors(cameraResetFromTarget, initialControlsTarget, resetT);
+  camera.lookAt(controls.target);
+  if (resetT >= 1.0) cameraResetActive = false;
+}`)
+
+	assertContainsBlock(t, html, `if (showColony && !cameraResetActive) {
+  var prevCameraY = camera.position.y;
+  camera.position.y = Math.max(camera.position.y, groundY + cameraFloorOffset);
+  if (camera.position.y !== prevCameraY) camera.lookAt(controls.target);
+}`)
+}
+
 func TestBuildHTML_ShowColonyOffHidesShellAndShadowCompletely(t *testing.T) {
 	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
 	html := buildHTML(jsonStr, "")
@@ -270,6 +378,26 @@ func TestBuildHTML_ShowColonyOffHidesShellAndShadowCompletely(t *testing.T) {
 	for _, snippet := range required {
 		if !strings.Contains(html, snippet) {
 			t.Errorf("HTML missing full colony hide snippet %q", snippet)
+		}
+	}
+}
+
+func TestBuildHTML_AlignsColonyBaseAndClampsCameraFloor(t *testing.T) {
+	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
+	html := buildHTML(jsonStr, "")
+
+	required := []string{
+		`var roomFloorY = minY - cy;`,
+		`var colonyLift = roomFloorY - scaledMinY;`,
+		`colony.position.y += colonyLift;`,
+		`var groundY = alignedBox.min.y;`,
+		`groundMesh.position.y = groundY - 0.02;`,
+		`var cameraFloorOffset =`,
+		`camera.position.y = Math.max(camera.position.y, groundY + cameraFloorOffset);`,
+	}
+	for _, snippet := range required {
+		if !strings.Contains(html, snippet) {
+			t.Errorf("HTML missing colony floor alignment snippet %q", snippet)
 		}
 	}
 }
