@@ -616,11 +616,32 @@ function getOrCreateAnt(antId) {
     emissive: bodyCol, emissiveIntensity: 0.05
   });
   var mesh = new THREE.Mesh(g, m);
+  var occlusionOutline = new THREE.MeshBasicMaterial({
+    color: 0xffd36a,
+    transparent: true,
+    opacity: 0.38,
+    depthTest: true,
+    depthWrite: false,
+    depthFunc: THREE.GreaterDepth,
+    side: THREE.BackSide
+  });
+  var outline = new THREE.Mesh(g.clone(), occlusionOutline);
+  outline.scale.setScalar(1.9);
+  outline.renderOrder = 20;
+  outline.visible = true;
+  mesh.add(outline);
+  mesh.userData.outline = outline;
   mesh.visible = false;
+  mesh.renderOrder = 10;
   scene.add(mesh);
   antMeshes[antId] = mesh;
   antCurrentRoom[antId] = SIM_DATA.startName;
   return mesh;
+}
+
+function showAnt(mesh) {
+  mesh.visible = true;
+  if (mesh.userData.outline) mesh.userData.outline.visible = true;
 }
 
 // ---------- TURN ANIMATIONS ----------
@@ -680,7 +701,7 @@ function animateAnts(turnIdx, progress) {
   for (var i = 0; i < anims.length; i++) {
     var a = anims[i];
     var mesh = getOrCreateAnt(a.antId);
-    mesh.visible = true;
+    showAnt(mesh);
     var pos = getAnimPos(a.fromPos, a.toPos, progress);
     mesh.position.copy(pos);
     // Orient capsule along movement direction
@@ -699,13 +720,16 @@ function snapAnts(turnIdx) {
     var a = anims[i];
     var mesh = getOrCreateAnt(a.antId);
     mesh.position.copy(a.toPos);
-    mesh.visible = true;
+    showAnt(mesh);
     antCurrentRoom[a.antId] = a.toName;
   }
 }
 
 function hideAllAnts() {
-  Object.keys(antMeshes).forEach(function(k) { antMeshes[k].visible = false; });
+  Object.keys(antMeshes).forEach(function(k) {
+    antMeshes[k].visible = false;
+    if (antMeshes[k].userData.outline) antMeshes[k].userData.outline.visible = false;
+  });
 }
 
 function rebuildAntsToTurn(targetTurn) {
@@ -723,7 +747,7 @@ function rebuildAntsToTurn(targetTurn) {
     var room = roomMap[roomName];
     if (room && roomName !== SIM_DATA.endName) {
       mesh.position.copy(room.pos);
-      mesh.visible = true;
+      showAnt(mesh);
     }
   });
 }

@@ -194,6 +194,23 @@ func TestBuildHTML_ContainsEmbeddedData(t *testing.T) {
 	}
 }
 
+func TestBuildHTML_AntOcclusionOutlineUsesDepthBuffer(t *testing.T) {
+	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
+	html := buildHTML(jsonStr, "")
+
+	required := []string{
+		"THREE.GreaterDepth",
+		"depthWrite: false",
+		"occlusionOutline",
+		"mesh.userData.outline = outline",
+	}
+	for _, snippet := range required {
+		if !strings.Contains(html, snippet) {
+			t.Errorf("HTML missing ant occlusion outline snippet %q", snippet)
+		}
+	}
+}
+
 func TestBuildHTML_ErrorOverlay(t *testing.T) {
 	parsed := &format.ParsedOutput{
 		Error: "ERROR: invalid data format, no path",
