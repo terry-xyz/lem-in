@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"strings"
 	"testing"
 
@@ -145,6 +146,28 @@ func TestBuildJSONData_BasicInput(t *testing.T) {
 			if r.Y != wantY {
 				t.Errorf("mid Y = %f, want %f", r.Y, wantY)
 			}
+		}
+	}
+}
+
+func TestBuildJSONData_SparseRoomsStayInsideColonyRadius(t *testing.T) {
+	parsed := &format.ParsedOutput{
+		AntCount:  1,
+		StartName: "start",
+		EndName:   "end",
+		Rooms: []format.ParsedRoom{
+			{Name: "start", IsStart: true},
+			{Name: "end", IsEnd: true},
+		},
+		Links: [][2]string{{"start", "end"}},
+	}
+
+	data := buildJSONData(parsed)
+
+	for _, r := range data.Rooms {
+		radius := math.Hypot(r.X, r.Z)
+		if radius > 1.25 {
+			t.Errorf("room %q radius = %.2f, want <= 1.25 so sparse layouts stay inside the colony", r.Name, radius)
 		}
 	}
 }

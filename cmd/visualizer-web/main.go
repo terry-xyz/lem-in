@@ -116,6 +116,22 @@ func bfsDepth(rooms []format.ParsedRoom, links [][2]string, startName string) ma
 	return depth
 }
 
+func colonyLayoutRadius(maxDepth, roomCount int, normalizedDepth float64) float64 {
+	baseRadius := 2.8 * (0.5 + 0.5*math.Sin(normalizedDepth*math.Pi))
+	if baseRadius < 0.8 {
+		baseRadius = 0.8
+	}
+
+	targetHeight := math.Max(float64(maxDepth)*3.8, 6.0)
+	colonyRadius := math.Max(1.25, targetHeight*0.12)
+	if colonyRadius > 1.65 {
+		colonyRadius = 1.65
+	}
+
+	desiredRadius := math.Max(baseRadius, float64(roomCount)*0.6)
+	return math.Min(desiredRadius, colonyRadius)
+}
+
 func buildJSONData(parsed *format.ParsedOutput) jsonData {
 	data := jsonData{
 		AntCount:  parsed.AntCount,
@@ -153,11 +169,7 @@ func buildJSONData(parsed *format.ParsedOutput) jsonData {
 		}
 
 		nd := float64(d) / math.Max(float64(maxDepth), 1.0)
-		baseRadius := 2.8 * (0.5 + 0.5*math.Sin(nd*math.Pi))
-		if baseRadius < 0.8 {
-			baseRadius = 0.8
-		}
-		radius := math.Max(baseRadius, float64(n)*0.6)
+		radius := colonyLayoutRadius(maxDepth, n, nd)
 
 		for i, r := range roomsAtLevel {
 			angle := 2.0 * math.Pi * float64(i) / float64(n)
