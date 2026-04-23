@@ -11,6 +11,7 @@ import (
 	"lem-in/internal/solver"
 )
 
+// main parses the input file, solves the colony routing problem, and prints the original map plus move schedule.
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("USAGE: go run ./cmd/lem-in <your-file.txt>")

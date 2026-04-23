@@ -6,6 +6,7 @@ import (
 	"lem-in/internal/format"
 )
 
+// TestScaleCoords_BasicLayout verifies room coordinates scale into terminal space while preserving relative ordering.
 func TestScaleCoords_BasicLayout(t *testing.T) {
 	rooms := []format.ParsedRoom{
 		{Name: "A", X: 0, Y: 0},
@@ -41,6 +42,7 @@ func TestScaleCoords_BasicLayout(t *testing.T) {
 	}
 }
 
+// TestScaleCoords_SingleRoom verifies a one-room map still lands inside the drawing margins.
 func TestScaleCoords_SingleRoom(t *testing.T) {
 	rooms := []format.ParsedRoom{
 		{Name: "only", X: 5, Y: 5},
@@ -61,6 +63,7 @@ func TestScaleCoords_SingleRoom(t *testing.T) {
 	}
 }
 
+// TestScaleCoords_EmptyRooms verifies scaling no rooms returns no position map.
 func TestScaleCoords_EmptyRooms(t *testing.T) {
 	positions := scaleCoords(nil, 80, 24)
 	if positions != nil {
@@ -68,6 +71,7 @@ func TestScaleCoords_EmptyRooms(t *testing.T) {
 	}
 }
 
+// TestDirGrid_Horizontal verifies horizontal tunnel traces render as horizontal box-drawing characters.
 func TestDirGrid_Horizontal(t *testing.T) {
 	dg := newDirGrid(20, 10)
 	cv := newCanvas(20, 10)
@@ -81,6 +85,7 @@ func TestDirGrid_Horizontal(t *testing.T) {
 	}
 }
 
+// TestDirGrid_Vertical verifies vertical tunnel traces render as vertical box-drawing characters.
 func TestDirGrid_Vertical(t *testing.T) {
 	dg := newDirGrid(20, 10)
 	cv := newCanvas(20, 10)
@@ -94,6 +99,7 @@ func TestDirGrid_Vertical(t *testing.T) {
 	}
 }
 
+// TestDirGrid_LShape verifies an orthogonal turn produces the expected corner glyph.
 func TestDirGrid_LShape(t *testing.T) {
 	dg := newDirGrid(20, 10)
 	cv := newCanvas(20, 10)
@@ -120,6 +126,7 @@ func TestDirGrid_LShape(t *testing.T) {
 	}
 }
 
+// TestDirGrid_TJunction verifies merged tunnel segments produce the correct T-junction glyph.
 func TestDirGrid_TJunction(t *testing.T) {
 	dg := newDirGrid(20, 10)
 	cv := newCanvas(20, 10)
@@ -135,6 +142,7 @@ func TestDirGrid_TJunction(t *testing.T) {
 	}
 }
 
+// TestDirGrid_Crossing verifies perpendicular tunnel traces merge into a crossing glyph.
 func TestDirGrid_Crossing(t *testing.T) {
 	dg := newDirGrid(20, 10)
 	cv := newCanvas(20, 10)
@@ -150,6 +158,7 @@ func TestDirGrid_Crossing(t *testing.T) {
 	}
 }
 
+// TestPlayback_SpeedControls verifies playback speed changes stay within the configured min and max bounds.
 func TestPlayback_SpeedControls(t *testing.T) {
 	p := newPlayback()
 
@@ -187,6 +196,7 @@ func TestPlayback_SpeedControls(t *testing.T) {
 	}
 }
 
+// TestPlayback_DefaultMode verifies playback starts in autoplay from the pre-turn state.
 func TestPlayback_DefaultMode(t *testing.T) {
 	p := newPlayback()
 	if p.mode != modeAutoPlay {
@@ -200,6 +210,7 @@ func TestPlayback_DefaultMode(t *testing.T) {
 	}
 }
 
+// TestAbs verifies the helper returns absolute magnitudes for positive, negative, and zero values.
 func TestAbs(t *testing.T) {
 	tests := []struct {
 		input, want int
@@ -217,6 +228,7 @@ func TestAbs(t *testing.T) {
 	}
 }
 
+// TestAntState_TrackPositions verifies applied turns update room occupancy for tracked ants.
 func TestAntState_TrackPositions(t *testing.T) {
 	as := newAntState(3, "start")
 
@@ -239,6 +251,7 @@ func TestAntState_TrackPositions(t *testing.T) {
 	}
 }
 
+// TestCanvas_SetAndGet verifies the canvas stores in-bounds cells and returns blanks for out-of-bounds lookups.
 func TestCanvas_SetAndGet(t *testing.T) {
 	cv := newCanvas(10, 5)
 

@@ -47,6 +47,7 @@ type jsonData struct {
 	Error     string           `json:"error,omitempty"`
 }
 
+// main converts solver output from stdin into a self-contained HTML visualizer document.
 func main() {
 	input, err := io.ReadAll(os.Stdin)
 	if err != nil {
@@ -85,6 +86,7 @@ func main() {
 	fmt.Print(html)
 }
 
+// bfsDepth assigns each room its shortest tunnel distance from the start so the 3D layout can stack layers by reachability.
 func bfsDepth(rooms []format.ParsedRoom, links [][2]string, startName string) map[string]int {
 	adj := make(map[string][]string)
 	for _, link := range links {
@@ -116,6 +118,7 @@ func bfsDepth(rooms []format.ParsedRoom, links [][2]string, startName string) ma
 	return depth
 }
 
+// colonyLayoutRadius picks a ring radius that fits the current depth layer inside the shell without collapsing sparse rooms into the center.
 func colonyLayoutRadius(maxDepth, roomCount int, normalizedDepth float64) float64 {
 	baseRadius := 2.8 * (0.5 + 0.5*math.Sin(normalizedDepth*math.Pi))
 	if baseRadius < 0.8 {
@@ -132,6 +135,7 @@ func colonyLayoutRadius(maxDepth, roomCount int, normalizedDepth float64) float6
 	return math.Min(desiredRadius, colonyRadius)
 }
 
+// buildJSONData converts parsed solver output into the browser-friendly schema used by the embedded Three.js app.
 func buildJSONData(parsed *format.ParsedOutput) jsonData {
 	data := jsonData{
 		AntCount:  parsed.AntCount,
@@ -168,6 +172,7 @@ func buildJSONData(parsed *format.ParsedOutput) jsonData {
 			continue
 		}
 
+		// Depth controls both vertical height and shell radius so each BFS layer reads as a distinct ring.
 		nd := float64(d) / math.Max(float64(maxDepth), 1.0)
 		radius := colonyLayoutRadius(maxDepth, n, nd)
 
@@ -177,6 +182,7 @@ func buildJSONData(parsed *format.ParsedOutput) jsonData {
 			for _, ch := range r.Name {
 				nameHash += float64(ch)
 			}
+			// Hash-based jitter keeps rooms from lining up too perfectly while staying deterministic across renders.
 			offset := math.Mod(nameHash*0.137, 0.3) - 0.15
 
 			data.Rooms = append(data.Rooms, jsonRoom{
@@ -205,6 +211,7 @@ func buildJSONData(parsed *format.ParsedOutput) jsonData {
 	return data
 }
 
+// buildHTML returns the standalone HTML document with embedded simulation data, model bytes, styles, and viewer script.
 func buildHTML(jsonStr, modelB64 string) string {
 	var sb strings.Builder
 	sb.WriteString(`<!DOCTYPE html>

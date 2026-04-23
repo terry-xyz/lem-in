@@ -56,6 +56,7 @@ const (
 	bgReset = esc + "49m"
 )
 
+// moveTo returns an ANSI cursor-position escape sequence for the given terminal row and column.
 func moveTo(row, col int) string {
 	return fmt.Sprintf("%s%d;%dH", esc, row, col)
 }
@@ -64,6 +65,7 @@ func moveTo(row, col int) string {
 // Terminal size
 // ---------------------------------------------------------------------------
 
+// getTerminalSize probes several terminal APIs and falls back to 80x24 when none of them respond.
 func getTerminalSize() (cols, rows int) {
 	// Try $COLUMNS / $LINES first (set by MINGW64 bash, most shells)
 	cols = envInt("COLUMNS", 0)
@@ -95,6 +97,7 @@ func getTerminalSize() (cols, rows int) {
 	return 80, 24 // fallback
 }
 
+// envInt reads an integer environment variable and returns the fallback when parsing fails.
 func envInt(name string, def int) int {
 	s := os.Getenv(name)
 	if s == "" {
@@ -107,6 +110,7 @@ func envInt(name string, def int) int {
 	return v
 }
 
+// tputInt asks tput for a numeric terminal capability such as columns or lines.
 func tputInt(cap string) (int, error) {
 	out, err := exec.Command("tput", cap).Output()
 	if err != nil {
@@ -134,6 +138,7 @@ func runStty(args ...string) ([]byte, error) {
 	return cmd.Output()
 }
 
+// enableRawMode switches the terminal into unbuffered key-reading mode and remembers the original settings.
 func enableRawMode() {
 	out, err := runStty("-g")
 	if err == nil {
@@ -142,6 +147,7 @@ func enableRawMode() {
 	_, _ = runStty("raw", "-echo", "min", "1", "time", "0")
 }
 
+// disableRawMode restores canonical terminal settings and times out rather than hanging behind a blocked PTY read.
 func disableRawMode() {
 	// Run stty restore with a timeout. On MINGW64, a pending readKeys
 	// Read on /dev/tty can block stty's tcsetattr indefinitely. If stty
@@ -171,16 +177,19 @@ type screenBuf struct {
 	buf strings.Builder
 }
 
+// write appends raw terminal output to the shared back buffer.
 func (s *screenBuf) write(a string) {
 	s.mu.Lock()
 	s.buf.WriteString(a)
 	s.mu.Unlock()
 }
 
+// writef formats text first so callers can build the frame buffer without intermediate strings.
 func (s *screenBuf) writef(format string, args ...interface{}) {
 	s.write(fmt.Sprintf(format, args...))
 }
 
+// flush writes the buffered frame to stdout in one shot to reduce flicker.
 func (s *screenBuf) flush() {
 	s.mu.Lock()
 	data := s.buf.String()
@@ -203,6 +212,7 @@ type canvas struct {
 	cells [][]cell
 }
 
+// newCanvas allocates a blank character grid initialized to spaces and the reset color.
 func newCanvas(w, h int) *canvas {
 	c := &canvas{w: w, h: h, cells: make([][]cell, h)}
 	for r := 0; r < h; r++ {
@@ -214,18 +224,21 @@ func newCanvas(w, h int) *canvas {
 	return c
 }
 
+// set writes one colored rune when the target cell falls inside the canvas bounds.
 func (c *canvas) set(x, y int, ch rune, fg string) {
 	if x >= 0 && x < c.w && y >= 0 && y < c.h {
 		c.cells[y][x] = cell{ch: ch, fg: fg}
 	}
 }
 
+// setStr writes a string rune by rune so labels can share the same clipping rules as single cells.
 func (c *canvas) setStr(x, y int, s string, fg string) {
 	for i, ch := range s {
 		c.set(x+i, y, ch, fg)
 	}
 }
 
+// get returns the cell contents or a blank reset cell when the coordinates fall outside the canvas.
 func (c *canvas) get(x, y int) cell {
 	if x >= 0 && x < c.w && y >= 0 && y < c.h {
 		return c.cells[y][x]
@@ -363,6 +376,7 @@ type dirGrid struct {
 	flags [][]dirFlags
 }
 
+// newDirGrid allocates a direction bitmap used to merge overlapping tunnel segments into box-drawing characters.
 func newDirGrid(w, h int) *dirGrid {
 	g := &dirGrid{w: w, h: h, flags: make([][]dirFlags, h)}
 	for y := 0; y < h; y++ {
@@ -371,6 +385,7 @@ func newDirGrid(w, h int) *dirGrid {
 	return g
 }
 
+// addFlag records that a tunnel passes through the cell in the given direction.
 func (g *dirGrid) addFlag(x, y int, d dirFlags) {
 	if x >= 0 && x < g.w && y >= 0 && y < g.h {
 		g.flags[y][x] |= d
@@ -428,6 +443,7 @@ func (g *dirGrid) applyToCanvas(cv *canvas, fg string) {
 	}
 }
 
+// abs returns the non-negative magnitude of x for path and layout calculations.
 func abs(x int) int {
 	if x < 0 {
 		return -x
@@ -465,14 +481,15 @@ type playback struct {
 	maxSpeed int
 
 	// Animation state
-	animating  bool
-	animForward bool         // true = forward transition, false = backward
-	animFrame  int           // current frame (0..animTotal-1)
-	animTotal  int           // total frames for this transition
-	entries    []animEntry   // ants being animated this turn
-	preAnts    *antState     // snapshot BEFORE the transition
+	animating   bool
+	animForward bool        // true = forward transition, false = backward
+	animFrame   int         // current frame (0..animTotal-1)
+	animTotal   int         // total frames for this transition
+	entries     []animEntry // ants being animated this turn
+	preAnts     *antState   // snapshot BEFORE the transition
 }
 
+// newPlayback returns the default autoplay configuration used when the visualizer starts.
 func newPlayback() *playback {
 	return &playback{
 		mode:     modeAutoPlay,
@@ -484,6 +501,7 @@ func newPlayback() *playback {
 	}
 }
 
+// faster lowers the transition duration until it hits the configured speed floor.
 func (p *playback) faster() {
 	p.speed -= 100
 	if p.speed < p.minSpeed {
@@ -491,6 +509,7 @@ func (p *playback) faster() {
 	}
 }
 
+// slower raises the transition duration until it hits the configured speed ceiling.
 func (p *playback) slower() {
 	p.speed += 100
 	if p.speed > p.maxSpeed {
@@ -516,6 +535,7 @@ type antState struct {
 	positions map[int]string // antID -> current room name
 }
 
+// newAntState places every ant in the start room before any turns have been applied.
 func newAntState(antCount int, startRoom string) *antState {
 	as := &antState{positions: make(map[int]string, antCount)}
 	for i := 1; i <= antCount; i++ {
@@ -524,6 +544,7 @@ func newAntState(antCount int, startRoom string) *antState {
 	return as
 }
 
+// applyTurn updates the tracked room for each ant that moved during the current turn.
 func (as *antState) applyTurn(moves []format.Movement) {
 	for _, m := range moves {
 		as.positions[m.AntID] = m.RoomName
@@ -565,6 +586,7 @@ type renderer struct {
 	panelH    int
 }
 
+// newRenderer computes terminal drawing bounds and room positions for the parsed simulation.
 func newRenderer(parsed *format.ParsedOutput, termW, termH int) *renderer {
 	panelH := 7 // rows reserved for info panel at bottom
 	canvasH := termH - panelH
@@ -641,6 +663,7 @@ func (rn *renderer) computeTransition(ants *antState, moves []format.Movement) [
 	return entries
 }
 
+// render redraws the full scene and info panel for the current playback state.
 func (rn *renderer) render(sb *screenBuf, ants *antState, pb *playback) {
 	cv := newCanvas(rn.canvasW, rn.canvasH)
 
@@ -840,6 +863,7 @@ func (rn *renderer) drawAntLabel(cv *canvas, sx, sy int, antIDs []int) {
 	cv.setStr(labelX, antY, antLabel, fgYellow)
 }
 
+// renderPanel draws the status and control legend in the reserved footer area.
 func (rn *renderer) renderPanel(sb *screenBuf, pb *playback) {
 	panelTop := rn.termH - rn.panelH + 1
 
@@ -1039,6 +1063,7 @@ func readKeys(ch chan<- keyEvent, done <-chan struct{}) {
 // Loading indicator
 // ---------------------------------------------------------------------------
 
+// showLoading paints the initial waiting screen before any solver output has been parsed.
 func showLoading() {
 	fmt.Print(clearScreen)
 	fmt.Print(moveTo(1, 1))
@@ -1102,6 +1127,7 @@ func showCenteredError(msg string) {
 // Main
 // ---------------------------------------------------------------------------
 
+// main reads solver output from stdin, initializes terminal mode, and runs the interactive TUI event loop.
 func main() {
 	// Switch to alternate screen buffer early so all output (including
 	// the loading screen) goes to the alt buffer. When we exit and
@@ -1297,15 +1323,15 @@ func main() {
 	// stepLockGap; a gap longer than that is interpreted as a new key press.
 	var stepFwdActive, stepBwdActive bool
 	var stepFwdLast, stepBwdLast time.Time
-	const stepLockGap = 500 * time.Millisecond  // held-key suppression during opposite-dir animation
+	const stepLockGap = 500 * time.Millisecond   // held-key suppression during opposite-dir animation
 	const stepRepeatGap = 100 * time.Millisecond // post-animation auto-repeat suppression
 
 	// Slider mode: event-driven. Each key event advances the animation
 	// by a time-proportional number of frames so that one full transition
 	// takes exactly pb.speed milliseconds regardless of auto-repeat rate.
 	var sliderLastEvent time.Time
-	var sliderFrac float64                          // fractional frame accumulator
-	const sliderNewTapGap = 150 * time.Millisecond  // gap longer than this = new tap (not held key)
+	var sliderFrac float64                         // fractional frame accumulator
+	const sliderNewTapGap = 150 * time.Millisecond // gap longer than this = new tap (not held key)
 
 	// Initial render
 	rend.render(sb, ants, pb)
@@ -1315,7 +1341,7 @@ func main() {
 	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
 
-	elapsed := 0         // accumulated ms for auto-advance
+	elapsed := 0           // accumulated ms for auto-advance
 	replayWaiting := false // waiting to auto-replay after last turn
 	replayElapsed := 0     // ms accumulated during replay wait
 

@@ -8,6 +8,7 @@ import (
 	"lem-in/internal/format"
 )
 
+// assertContainsBlock fails the test with the full missing snippet when generated HTML does not contain the expected block.
 func assertContainsBlock(t *testing.T, html, block string) {
 	t.Helper()
 
@@ -16,6 +17,7 @@ func assertContainsBlock(t *testing.T, html, block string) {
 	}
 }
 
+// TestBfsDepth_LinearGraph verifies BFS depth labels increase by one along a simple chain of rooms.
 func TestBfsDepth_LinearGraph(t *testing.T) {
 	rooms := []format.ParsedRoom{
 		{Name: "A", X: 0, Y: 0, IsStart: true},
@@ -35,6 +37,7 @@ func TestBfsDepth_LinearGraph(t *testing.T) {
 	}
 }
 
+// TestBfsDepth_BranchedGraph verifies BFS picks the shortest tunnel distance in a graph with branching paths.
 func TestBfsDepth_BranchedGraph(t *testing.T) {
 	rooms := []format.ParsedRoom{
 		{Name: "S", IsStart: true},
@@ -64,6 +67,7 @@ func TestBfsDepth_BranchedGraph(t *testing.T) {
 	}
 }
 
+// TestBfsDepth_UnreachableRoom verifies disconnected rooms fall back to depth zero instead of being omitted.
 func TestBfsDepth_UnreachableRoom(t *testing.T) {
 	rooms := []format.ParsedRoom{
 		{Name: "S", IsStart: true},
@@ -85,6 +89,7 @@ func TestBfsDepth_UnreachableRoom(t *testing.T) {
 	}
 }
 
+// TestBuildJSONData_BasicInput verifies parsed solver output becomes the expected JSON payload for the web visualizer.
 func TestBuildJSONData_BasicInput(t *testing.T) {
 	parsed := &format.ParsedOutput{
 		AntCount:  3,
@@ -158,6 +163,7 @@ func TestBuildJSONData_BasicInput(t *testing.T) {
 	}
 }
 
+// TestBuildJSONData_SparseRoomsStayInsideColonyRadius verifies tiny maps still place rooms inside the shell radius budget.
 func TestBuildJSONData_SparseRoomsStayInsideColonyRadius(t *testing.T) {
 	parsed := &format.ParsedOutput{
 		AntCount:  1,
@@ -180,6 +186,7 @@ func TestBuildJSONData_SparseRoomsStayInsideColonyRadius(t *testing.T) {
 	}
 }
 
+// TestBuildJSONData_ErrorInput verifies parser errors short-circuit JSON generation instead of emitting partial scene data.
 func TestBuildJSONData_ErrorInput(t *testing.T) {
 	parsed := &format.ParsedOutput{
 		Error: "ERROR: invalid data format, no path from start to end",
@@ -201,6 +208,7 @@ func TestBuildJSONData_ErrorInput(t *testing.T) {
 	}
 }
 
+// TestBuildHTML_ContainsEmbeddedData verifies the generated HTML embeds the simulation payload and viewer dependencies.
 func TestBuildHTML_ContainsEmbeddedData(t *testing.T) {
 	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
 	html := buildHTML(jsonStr, "")
@@ -225,6 +233,7 @@ func TestBuildHTML_ContainsEmbeddedData(t *testing.T) {
 	}
 }
 
+// TestBuildHTML_AntOcclusionOutlineUsesDepthBuffer verifies ant outlines are configured to appear only when ants are hidden behind geometry.
 func TestBuildHTML_AntOcclusionOutlineUsesDepthBuffer(t *testing.T) {
 	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
 	html := buildHTML(jsonStr, "")
@@ -242,6 +251,7 @@ func TestBuildHTML_AntOcclusionOutlineUsesDepthBuffer(t *testing.T) {
 	}
 }
 
+// TestBuildHTML_ShowColonyToggleMarkupAndHooks verifies the colony-visibility control and its script hooks are present in the document.
 func TestBuildHTML_ShowColonyToggleMarkupAndHooks(t *testing.T) {
 	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
 	html := buildHTML(jsonStr, "")
@@ -265,6 +275,7 @@ func TestBuildHTML_ShowColonyToggleMarkupAndHooks(t *testing.T) {
 	}
 }
 
+// TestBuildHTML_AutoRotateToggleMarkupAndHooks verifies the auto-rotate toggle exposes the expected markup, state, and event wiring.
 func TestBuildHTML_AutoRotateToggleMarkupAndHooks(t *testing.T) {
 	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
 	html := buildHTML(jsonStr, "")
@@ -305,6 +316,7 @@ func TestBuildHTML_AutoRotateToggleMarkupAndHooks(t *testing.T) {
 }`)
 }
 
+// TestBuildHTML_ShowColonyToggleRestoresLegacyCameraAndGuardedRecovery verifies re-showing the shell restores a safe camera position and reset animation.
 func TestBuildHTML_ShowColonyToggleRestoresLegacyCameraAndGuardedRecovery(t *testing.T) {
 	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
 	html := buildHTML(jsonStr, "")
@@ -365,6 +377,7 @@ func TestBuildHTML_ShowColonyToggleRestoresLegacyCameraAndGuardedRecovery(t *tes
 }`)
 }
 
+// TestBuildHTML_ShowColonyOffHidesShellAndShadowCompletely verifies hiding the shell also hides its ground shadow and opacity state.
 func TestBuildHTML_ShowColonyOffHidesShellAndShadowCompletely(t *testing.T) {
 	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
 	html := buildHTML(jsonStr, "")
@@ -382,6 +395,7 @@ func TestBuildHTML_ShowColonyOffHidesShellAndShadowCompletely(t *testing.T) {
 	}
 }
 
+// TestBuildHTML_AlignsColonyBaseAndClampsCameraFloor verifies the scene aligns the shell base to the room floor and prevents the camera from falling under it.
 func TestBuildHTML_AlignsColonyBaseAndClampsCameraFloor(t *testing.T) {
 	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
 	html := buildHTML(jsonStr, "")
@@ -402,6 +416,7 @@ func TestBuildHTML_AlignsColonyBaseAndClampsCameraFloor(t *testing.T) {
 	}
 }
 
+// TestBuildHTML_ErrorOverlay verifies the error-data path is preserved so the HTML can render an overlay instead of a broken scene.
 func TestBuildHTML_ErrorOverlay(t *testing.T) {
 	parsed := &format.ParsedOutput{
 		Error: "ERROR: invalid data format, no path",

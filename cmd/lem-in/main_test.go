@@ -11,6 +11,7 @@ import (
 	"testing"
 )
 
+// TestIntegration builds the CLI and verifies representative example files produce valid schedules within the expected turn limits.
 func TestIntegration(t *testing.T) {
 	// Build the binary first
 	binDir := t.TempDir()
@@ -111,6 +112,7 @@ func TestIntegration(t *testing.T) {
 	}
 }
 
+// TestNoArgs verifies the CLI prints the usage hint and exits cleanly when no input file is provided.
 func TestNoArgs(t *testing.T) {
 	cmd := exec.Command("go", "run", ".")
 	cmd.Dir = "."
@@ -123,6 +125,7 @@ func TestNoArgs(t *testing.T) {
 	}
 }
 
+// TestNonexistentFile verifies the CLI reports a parser-style error when the requested input file cannot be read.
 func TestNonexistentFile(t *testing.T) {
 	cmd := exec.Command("go", "run", ".", "nonexistent_file.txt")
 	cmd.Dir = "."
@@ -193,6 +196,7 @@ func parseColonyFromFileContent(content string) colonyInfo {
 	return ci
 }
 
+// normalizeTunnel returns a stable undirected tunnel key so start-end and end-start compare as the same edge.
 func normalizeTunnel(a, b string) string {
 	if a > b {
 		a, b = b, a
