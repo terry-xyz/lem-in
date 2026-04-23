@@ -256,6 +256,11 @@ canvas{display:block}
   height:10px;background:#d4a574;border-radius:50%;cursor:pointer}
 #colony-toggle-wrap{position:fixed;right:28px;bottom:20px;z-index:101;
   animation:fadeIn 1s ease-out 0.3s both}
+#auto-rotate-toggle-wrap{position:fixed;left:28px;bottom:20px;z-index:101;
+  animation:fadeIn 1s ease-out 0.3s both}
+@media (max-width: 820px) {
+  #auto-rotate-toggle-wrap{left:16px;bottom:82px}
+}
 .button-wrap{transition:all 400ms cubic-bezier(0.25,1,0.5,1)}
 .glass-button{position:relative;border:none;border-radius:999px;cursor:pointer;
   outline:none;background:linear-gradient(-75deg,rgba(255,255,255,0.05),
@@ -333,6 +338,12 @@ canvas{display:block}
 <div id="colony-toggle-wrap" class="button-wrap">
   <button id="btn-show-colony" class="glass-button" type="button" title="Toggle colony shell visibility">
     <span class="button-text" id="btn-show-colony-text">SHOW COLONY: YES</span>
+    <div class="button-shine"></div>
+  </button>
+</div>
+<div id="auto-rotate-toggle-wrap" class="button-wrap">
+  <button id="btn-auto-rotate" class="glass-button" type="button" title="Toggle auto-rotation" aria-pressed="true">
+    <span class="button-text" id="btn-auto-rotate-text">AUTO-ROTATE: YES</span>
     <div class="button-shine"></div>
   </button>
 </div>
@@ -501,6 +512,7 @@ async function loadColonyModel() {
 var gltf = await loadColonyModel();
 var colony = gltf.scene;
 var showColony = true;
+var autoRotateEnabled = true;
 var colonyShellMaterials = [];
 var colonyVisibleOpacity = 1.0;
 var colonyHiddenOpacity = 0.0;
@@ -531,17 +543,24 @@ var modelCenter = modelBox.getCenter(new THREE.Vector3());
 var modelSize = modelBox.getSize(new THREE.Vector3());
 var targetH = Math.max(totalHeight, 6);
 var sc = targetH / modelSize.y * 1.15;
+var roomFloorY = minY - cy;
 colony.scale.setScalar(sc);
 colony.position.set(-modelCenter.x * sc, -modelCenter.y * sc, -modelCenter.z * sc);
 scene.add(colony);
 colony.updateMatrixWorld(true);
 
-// Recompute bounds after scaling
+// Recompute bounds after scaling and align the colony floor to the room floor
 var scaledBox = new THREE.Box3().setFromObject(colony);
 var scaledSize = scaledBox.getSize(new THREE.Vector3());
 var scaledMinY = scaledBox.min.y;
-var scaledSizeY = scaledSize.y;
-var baseThresholdWorld = scaledMinY + scaledSizeY * 0.05;
+var colonyLift = roomFloorY - scaledMinY;
+colony.position.y += colonyLift;
+colony.updateMatrixWorld(true);
+
+var alignedBox = new THREE.Box3().setFromObject(colony);
+var alignedSize = alignedBox.getSize(new THREE.Vector3());
+var groundY = alignedBox.min.y;
+var baseThresholdWorld = groundY + alignedSize.y * 0.05;
 
 // Pre-compute room world positions for shader
 var roomPosArray = [];
@@ -664,7 +683,7 @@ var groundGeo = new THREE.PlaneGeometry(120, 120);
 var groundMat = new THREE.ShadowMaterial({ opacity: 0.15 });
 var groundMesh = new THREE.Mesh(groundGeo, groundMat);
 groundMesh.rotation.x = -Math.PI / 2;
-groundMesh.position.y = minY - cy - 0.1;
+groundMesh.position.y = groundY - 0.02;
 groundMesh.receiveShadow = true;
 scene.add(groundMesh);
 
@@ -687,11 +706,32 @@ function applyColonyVisibility() {
   btnShowColonyText.textContent = showColony ? 'SHOW COLONY: YES' : 'SHOW COLONY: OFF';
 }
 
+function applyAutoRotateState() {
+  controls.autoRotate = autoRotateEnabled;
+  btnAutoRotate.setAttribute('aria-pressed', autoRotateEnabled ? 'true' : 'false');
+  btnAutoRotateText.textContent = autoRotateEnabled ? 'AUTO-ROTATE: YES' : 'AUTO-ROTATE: OFF';
+}
+
 // ---------- CAMERA ----------
-var camDist = Math.max(totalHeight * 2.0, scaledSize.length() * 1.5, 22);
+var camDist = Math.max(totalHeight * 2.0, alignedSize.length() * 1.5, 22);
+var cameraFloorOffset = 0.18;
 camera.position.set(camDist * 0.55, totalHeight * 0.5, camDist * 0.55);
 controls.target.set(0, 0, 0);
 camera.lookAt(0, 0, 0);
+var initialCameraPosition = camera.position.clone();
+var initialControlsTarget = controls.target.clone();
+var cameraResetActive = false;
+var cameraResetElapsed = 0;
+var cameraResetDuration = 0.6;
+var cameraResetFromPosition = new THREE.Vector3();
+var cameraResetFromTarget = new THREE.Vector3();
+
+function startCameraResetToOpeningView() {
+  cameraResetActive = true;
+  cameraResetElapsed = 0;
+  cameraResetFromPosition.copy(camera.position);
+  cameraResetFromTarget.copy(controls.target);
+}
 
 // ---------- ANT MANAGEMENT ----------
 var antMeshes = {};
@@ -931,6 +971,8 @@ var btnNext = document.getElementById('btn-next');
 var btnRestart = document.getElementById('btn-restart');
 var btnShowColony = document.getElementById('btn-show-colony');
 var btnShowColonyText = document.getElementById('btn-show-colony-text');
+var btnAutoRotate = document.getElementById('btn-auto-rotate');
+var btnAutoRotateText = document.getElementById('btn-auto-rotate-text');
 var spSlider = document.getElementById('sp-slider');
 var spVal = document.getElementById('sp-val');
 var tlSlider = document.getElementById('tl-slider');
@@ -959,6 +1001,14 @@ btnNext.addEventListener('click', function() {
 btnShowColony.addEventListener('click', function() {
   showColony = !showColony;
   applyColonyVisibility();
+  if (!showColony) cameraResetActive = false;
+  if (showColony && camera.position.y < groundY) {
+    startCameraResetToOpeningView();
+  }
+});
+btnAutoRotate.addEventListener('click', function() {
+  autoRotateEnabled = !autoRotateEnabled;
+  applyAutoRotateState();
 });
 spSlider.addEventListener('input', function() {
   speed = parseFloat(spSlider.value);
@@ -971,6 +1021,7 @@ tlSlider.addEventListener('input', function() {
   else { animComplete = false; rebuildAntsToTurn(target); }
 });
 applyColonyVisibility();
+applyAutoRotateState();
 
 // ---------- LOADING FADE ----------
 var ld = document.getElementById('loading');
@@ -1000,6 +1051,20 @@ function animate() {
   tlSlider.value = animComplete ? turns.length : currentTurn;
 
   controls.update();
+  if (cameraResetActive) {
+  cameraResetElapsed += dt;
+  var resetT = Math.min(cameraResetElapsed / cameraResetDuration, 1.0);
+  resetT = resetT < 0.5 ? 4 * resetT * resetT * resetT : 1 - Math.pow(-2 * resetT + 2, 3) / 2;
+  camera.position.lerpVectors(cameraResetFromPosition, initialCameraPosition, resetT);
+  controls.target.lerpVectors(cameraResetFromTarget, initialControlsTarget, resetT);
+  camera.lookAt(controls.target);
+  if (resetT >= 1.0) cameraResetActive = false;
+}
+  if (showColony && !cameraResetActive) {
+  var prevCameraY = camera.position.y;
+  camera.position.y = Math.max(camera.position.y, groundY + cameraFloorOffset);
+  if (camera.position.y !== prevCameraY) camera.lookAt(controls.target);
+}
   renderer.render(scene, camera);
 }
 
