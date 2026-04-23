@@ -4,7 +4,7 @@
 
 The CLI output is not just user-facing text. It is the interchange format for both visualizers.
 
-- Defined by: `main.go`, `cmd/lem-in/main.go`, `internal/simulator/simulator.go`
+- Defined by: `cmd/lem-in/main.go`, `internal/simulator/simulator.go`
 - Consumed by: `internal/format/format.go`, `cmd/visualizer-tui/main.go`, `cmd/visualizer-web/main.go`
 - Why it matters: the blank line between original input and movement lines is structural, not cosmetic. If output formatting changes, the visualizers stop parsing.
 
@@ -38,9 +38,9 @@ The visualizers do not call parser, graph, solver, or simulator packages directl
 - Consumed by: `cmd/visualizer-tui/main.go`, `cmd/visualizer-web/main.go`
 - Why it matters: visualizers are coupled to transcript format, not to the in-memory `parser.Colony` or solver path types. That keeps them loosely linked to the solver code, but tightly linked to output shape.
 
-## Entry point duplication is deliberate
+## Single solver entrypoint
 
-The repo has both `main.go` and `cmd/lem-in/main.go`, and they currently do the same work.
+The solver CLI now lives only under `cmd/lem-in`.
 
-- Files: `main.go`, `cmd/lem-in/main.go`
-- Why it matters: root `go run .` and the packaged CLI binary stay equivalent only as long as these files stay in lockstep.
+- Files: `cmd/lem-in/main.go`
+- Why it matters: the documented and tested command path is `go run ./cmd/lem-in`, so command-line behavior only needs to stay consistent in one place.

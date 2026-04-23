@@ -2,9 +2,9 @@
 
 ## Output compatibility is fragile
 
-- Files: `main.go`, `cmd/lem-in/main.go`, `internal/simulator/simulator.go`, `internal/format/format.go`
+- Files: `cmd/lem-in/main.go`, `internal/simulator/simulator.go`, `internal/format/format.go`
 - Risk: the visualizers require the exact “original input, blank line, movement lines” structure.
-- Inspect if changed: both solver entrypoints, `Simulate`, and `ParseOutput`.
+- Inspect if changed: `cmd/lem-in/main.go`, `Simulate`, and `ParseOutput`.
 
 ## Parser rules encode most invariants
 
@@ -54,8 +54,8 @@
 - Risk: the page only works because the embedded model is gzip-compressed in Go and decompressed in the browser. Either side can break the other.
 - Inspect if changed: Go-side gzip/base64 steps in `main`, browser-side `loadColonyModel`.
 
-## Duplicate CLI entrypoints can drift
+## Solver CLI has one contract surface
 
-- Files: `main.go`, `cmd/lem-in/main.go`
-- Risk: they are currently identical by copy, not by shared function. One can diverge silently.
-- Inspect if changed: both files together, especially output formatting and error handling.
+- Files: `cmd/lem-in/main.go`
+- Risk: the solver entrypoint, usage text, and transcript shape are now centralized in one file, so behavior changes should be reviewed there together with the visualizer parser.
+- Inspect if changed: `cmd/lem-in/main.go`, especially output formatting and error handling.

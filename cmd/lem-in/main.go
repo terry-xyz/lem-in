@@ -13,7 +13,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("USAGE: go run . <your-file.txt>")
+		fmt.Println("USAGE: go run ./cmd/lem-in <your-file.txt>")
 		return
 	}
 

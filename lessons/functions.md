@@ -1,31 +1,17 @@
-# `main.go`
+# `cmd/lem-in/main.go`
 
-Purpose: root CLI entrypoint for `go run .`. It parses one colony file, builds the flow graph, finds usable paths, assigns ants to those paths, simulates turn output, then prints the original input followed by the move list.
+Purpose: solver CLI entrypoint for `go run ./cmd/lem-in` and `go build ./cmd/lem-in`.
 
 Execution Flow:
 - `main` reads `os.Args[1]`, calls `parser.Parse`, `graph.BuildGraph`, `solver.FindPaths`, `solver.DistributeAnts`, and `simulator.Simulate`, then prints `colony.Lines`, a blank separator, and each simulated turn.
 - The printed separator and move format are the contract consumed later by `internal/format.ParseOutput` and both visualizers.
 
 ## `main`
-- Purpose: orchestrate the full solver pipeline for direct invocation from the repo root.
+- Purpose: provide the solver binary under `cmd/lem-in`.
 - Behavior: validates that a filename argument exists, aborts on parser or solver errors, and preserves the exact original input text before printing the generated moves.
 - Dependencies: `os.Args`, `parser.Parse`, `graph.BuildGraph`, `solver.FindPaths`, `solver.DistributeAnts`, `simulator.Simulate`, `strings.Join`.
-- Called from: no Go call sites inside the repo. Directly invoked by the Go runtime when the root package is built or run with `go run .`.
-- Change impact: any change to output shape breaks `internal/format.ParseOutput`, `cmd/visualizer-tui`, and `cmd/visualizer-web`. Any change to pipeline order changes solver semantics.
-
-# `cmd/lem-in/main.go`
-
-Purpose: packaged CLI entrypoint for `go build ./cmd/lem-in`. It is intentionally the same pipeline as the root `main.go`.
-
-Execution Flow:
-- Identical to `main.go`: parse input, build graph, solve paths, distribute ants, simulate turns, print original input, separator, and moves.
-
-## `main`
-- Purpose: provide the installable solver binary under `cmd/lem-in`.
-- Behavior: mirrors the root `main` exactly so `go run .` and `go build ./cmd/lem-in` produce the same functional solver.
-- Dependencies: same as the root `main`.
 - Called from: no Go call sites inside the repo. Invoked by the Go runtime when `cmd/lem-in` is built or run.
-- Change impact: if this drifts from the root `main`, the repo gains two subtly different solver binaries and the visualizers may only match one of them.
+- Change impact: any change to output shape breaks `internal/format.ParseOutput`, `cmd/visualizer-tui`, and `cmd/visualizer-web`. Any change to pipeline order changes solver semantics.
 
 # `internal/parser/types.go`
 
@@ -45,7 +31,7 @@ Module notes:
 - Purpose: aggregate all validated input needed by the solver pipeline.
 - Behavior: keeps ant count, ordered room list, room-name lookup table, tunnel list, start and end room names, and original input lines.
 - Dependencies: populated by `Parse` and `parseLines`.
-- Called from: consumed by `graph.BuildGraph` and both solver entrypoints; `Lines` is reprinted by both entrypoints.
+- Called from: consumed by `graph.BuildGraph` and `cmd/lem-in/main.go`; `Lines` is reprinted by the solver CLI entrypoint.
 - Change impact: this is the boundary between parsing and everything else. Field shape changes ripple through the entire pipeline.
 
 # `internal/parser/parser.go`
@@ -60,7 +46,7 @@ Audit Notes:
 - Purpose: top-level parser API for reading a file from disk and normalizing line endings before syntax validation.
 - Behavior: reads the file, canonicalizes CRLF to LF, trims trailing newlines, rejects empty content as an invalid ant-count file, splits into lines, and delegates to `parseLines`.
 - Dependencies: `os.ReadFile`, `strings.ReplaceAll`, `strings.TrimRight`, `strings.Split`, `parseLines`.
-- Called from: directly observed in `main.go`, `cmd/lem-in/main.go`; no other production call sites.
+- Called from: directly observed in `cmd/lem-in/main.go`; no other production call sites.
 - Change impact: changes here affect filesystem error handling and the exact input handed to the state machine below.
 
 ## `parseLines`
@@ -95,7 +81,7 @@ Concept hook:
 - Purpose: build the capacity graph that encodes room occupancy rules as a max-flow problem.
 - Behavior: assigns one node ID to start and end, two node IDs to each intermediate room, adds capacity-1 internal edges for split rooms, then adds bidirectional tunnel edges between each room's outbound and inbound side.
 - Dependencies: `parser.Colony`, `Graph.addEdge`, `Graph.outNode`, `Graph.inNode`.
-- Called from: directly observed in `main.go` and `cmd/lem-in/main.go`.
+- Called from: directly observed in `cmd/lem-in/main.go`.
 - Change impact: this is where problem semantics become graph semantics. A mistake here silently yields wrong path sets even when parsing and simulation remain unchanged.
 
 ## `(*Graph).outNode`
@@ -144,7 +130,7 @@ Audit Notes:
 - Purpose: top-level solver API that turns a flow graph into the best set of usable paths for the requested ant count.
 - Behavior: repeatedly runs `bfs` plus `pushFlow` until no augmenting path remains, decomposes the resulting positive flow into raw node-ID paths, converts them back to external room names, sorts by ascending path length, and keeps only the prefix that minimizes `computeTurns`.
 - Dependencies: `bfs`, `pushFlow`, `decomposePaths`, `graph.OriginalName`, `Path.Length`, `computeTurns`, `sort.Slice`.
-- Called from: directly observed in `main.go` and `cmd/lem-in/main.go`.
+- Called from: directly observed in `cmd/lem-in/main.go`.
 - Change impact: this is the solver's core correctness boundary. Any mistake can produce too few paths, wrong paths, or a suboptimal subset.
 
 ## `bfs`
@@ -197,7 +183,7 @@ Purpose: assign individual ant IDs across the chosen paths so the simulator can 
 - Purpose: convert path-level optimality into concrete per-ant assignments.
 - Behavior: re-evaluates the best usable prefix of the provided sorted paths, computes how many ants each selected path should carry, removes rounding excess from the longest used paths, then emits `AntAssignment` values in increasing ant-ID order with shorter paths filled first.
 - Dependencies: `computeTurns`, `Path.Length`, `math.MaxInt64`.
-- Called from: directly observed in `main.go` and `cmd/lem-in/main.go`.
+- Called from: directly observed in `cmd/lem-in/main.go`.
 - Change impact: if assignment order or counts change, `simulator.Simulate` still runs but the emitted move schedule can take more turns than necessary.
 
 # `internal/simulator/simulator.go`
@@ -208,7 +194,7 @@ Purpose: transform path assignments into the lem-in move transcript printed by t
 - Purpose: generate one output line per turn in the `L<ant>-<room>` format.
 - Behavior: groups ants by path, advances all active ants one step per turn, launches at most one new ant per path each turn, sorts same-turn moves by ant ID, and emits the final move lines until no further moves remain.
 - Dependencies: `solver.Path`, `solver.AntAssignment`, `sort.Slice`, `strings.Builder`, `fmt.Fprintf`.
-- Called from: directly observed in `main.go` and `cmd/lem-in/main.go`.
+- Called from: directly observed in `cmd/lem-in/main.go`.
 - Change impact: this is the user-visible transcript contract. Any formatting change breaks `internal/format.ParseOutput` and both visualizers.
 
 # `internal/format/format.go`

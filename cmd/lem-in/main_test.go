@@ -118,8 +118,8 @@ func TestNoArgs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected exit 0 for no args: %v", err)
 	}
-	if !strings.Contains(string(out), "USAGE") {
-		t.Error("expected USAGE message for no args")
+	if got := strings.TrimSpace(string(out)); got != "USAGE: go run ./cmd/lem-in <your-file.txt>" {
+		t.Errorf("unexpected usage message: %q", got)
 	}
 }
 
