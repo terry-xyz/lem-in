@@ -234,6 +234,46 @@ func TestBuildHTML_AntOcclusionOutlineUsesDepthBuffer(t *testing.T) {
 	}
 }
 
+func TestBuildHTML_ShowColonyToggleMarkupAndHooks(t *testing.T) {
+	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
+	html := buildHTML(jsonStr, "")
+
+	required := []string{
+		`id="colony-toggle-wrap"`,
+		`id="btn-show-colony"`,
+		`SHOW COLONY`,
+		`var showColony = true;`,
+		`var colonyShellMaterials = [];`,
+		`function applyColonyVisibility()`,
+		`groundMat.opacity`,
+		`colonyShellMaterials.forEach(function(mat)`,
+		`button-shine`,
+		`.glass-button`,
+	}
+	for _, snippet := range required {
+		if !strings.Contains(html, snippet) {
+			t.Errorf("HTML missing show colony snippet %q", snippet)
+		}
+	}
+}
+
+func TestBuildHTML_ShowColonyOffHidesShellAndShadowCompletely(t *testing.T) {
+	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
+	html := buildHTML(jsonStr, "")
+
+	required := []string{
+		`var colonyHiddenOpacity = 0.0;`,
+		`var groundHiddenOpacity = 0.0;`,
+		`colony.visible = showColony;`,
+		`groundMesh.visible = showColony;`,
+	}
+	for _, snippet := range required {
+		if !strings.Contains(html, snippet) {
+			t.Errorf("HTML missing full colony hide snippet %q", snippet)
+		}
+	}
+}
+
 func TestBuildHTML_ErrorOverlay(t *testing.T) {
 	parsed := &format.ParsedOutput{
 		Error: "ERROR: invalid data format, no path",

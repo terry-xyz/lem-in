@@ -254,10 +254,55 @@ canvas{display:block}
   background:rgba(255,255,255,0.12);border-radius:1px;outline:none}
 .sp input::-webkit-slider-thumb{-webkit-appearance:none;width:10px;
   height:10px;background:#d4a574;border-radius:50%;cursor:pointer}
+#colony-toggle-wrap{position:fixed;right:28px;bottom:20px;z-index:101;
+  animation:fadeIn 1s ease-out 0.3s both}
+.button-wrap{transition:all 400ms cubic-bezier(0.25,1,0.5,1)}
+.glass-button{position:relative;border:none;border-radius:999px;cursor:pointer;
+  outline:none;background:linear-gradient(-75deg,rgba(255,255,255,0.05),
+  rgba(255,255,255,0.2),rgba(255,255,255,0.05));
+  box-shadow:inset 0 2px 2px rgba(0,0,0,0.05),
+  inset 0 -2px 2px rgba(255,255,255,0.5),0 4px 2px -2px rgba(0,0,0,0.2),
+  0 0 2px 4px rgba(255,255,255,0.2) inset;
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  transition:all 400ms cubic-bezier(0.25,1,0.5,1)}
+.glass-button:hover{transform:scale(0.975);backdrop-filter:blur(1px);
+  -webkit-backdrop-filter:blur(1px);box-shadow:inset 0 2px 2px rgba(0,0,0,0.05),
+  inset 0 -2px 2px rgba(255,255,255,0.5),0 3px 1px -2px rgba(0,0,0,0.25),
+  0 0 1px 2px rgba(255,255,255,0.5) inset}
+.glass-button:active{transform:scale(0.95) rotate3d(1,0,0,25deg);
+  box-shadow:inset 0 2px 2px rgba(0,0,0,0.05),
+  inset 0 -2px 2px rgba(255,255,255,0.5),0 2px 2px -2px rgba(0,0,0,0.2),
+  0 0 2px 4px rgba(255,255,255,0.2) inset,0 4px 1px 0 rgba(0,0,0,0.05),
+  0 4px 0 0 rgba(255,255,255,0.75),inset 0 4px 1px 0 rgba(0,0,0,0.15)}
+.glass-button::after{content:'';position:absolute;inset:-1px;border-radius:999px;
+  padding:1px;box-sizing:border-box;background:
+  conic-gradient(from -75deg at 50% 50%,rgba(0,0,0,0.5),rgba(0,0,0,0) 5% 40%,
+  rgba(0,0,0,0.5) 50%,rgba(0,0,0,0) 60% 95%,rgba(0,0,0,0.5)),
+  linear-gradient(180deg,rgba(255,255,255,0.5),rgba(255,255,255,0.5));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box,
+  linear-gradient(#000 0 0);mask-composite:exclude;
+  box-shadow:inset 0 0 0 0.5px rgba(255,255,255,0.5);
+  transition:all 400ms cubic-bezier(0.25,1,0.5,1)}
+.button-text{position:relative;display:block;user-select:none;font-weight:600;
+  font-size:0.72rem;color:#3f3a33;letter-spacing:0.12em;padding:13px 22px;
+  text-shadow:0 4px 1px rgba(0,0,0,0.1);
+  transition:all 400ms cubic-bezier(0.25,1,0.5,1)}
+.glass-button:hover .button-text{text-shadow:1px 1px 1px rgba(0,0,0,0.12)}
+.glass-button:active .button-text{text-shadow:1px 4px 1px rgba(0,0,0,0.12)}
+.button-shine{position:absolute;inset:0.5px;border-radius:999px;
+  background:linear-gradient(-45deg,rgba(255,255,255,0) 0%,
+  rgba(255,255,255,0.5) 40% 50%,rgba(255,255,255,0) 55%);
+  mix-blend-mode:screen;pointer-events:none;background-size:200% 200%;
+  background-position:0% 50%;background-repeat:no-repeat;
+  transition:background-position 500ms cubic-bezier(0.25,1,0.5,1)}
+.glass-button:hover .button-shine{background-position:25% 50%}
+.glass-button:active .button-shine{background-position:50% 15%}
 #hover{position:fixed;padding:8px 14px;background:rgba(35,32,28,0.9);
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
   border-radius:8px;font-size:0.72rem;color:#ccc;pointer-events:none;
   display:none;white-space:pre-line;line-height:1.5;z-index:200}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 </style>
 </head>
 <body>
@@ -284,6 +329,12 @@ canvas{display:block}
     <input type="range" id="sp-slider" min="0.2" max="4" step="0.1" value="1">
     <span id="sp-val">1.0x</span>
   </div>
+</div>
+<div id="colony-toggle-wrap" class="button-wrap">
+  <button id="btn-show-colony" class="glass-button" type="button" title="Toggle colony shell visibility">
+    <span class="button-text" id="btn-show-colony-text">SHOW COLONY: YES</span>
+    <div class="button-shine"></div>
+  </button>
 </div>
 <div id="hover"></div>
 
@@ -449,6 +500,12 @@ async function loadColonyModel() {
 
 var gltf = await loadColonyModel();
 var colony = gltf.scene;
+var showColony = true;
+var colonyShellMaterials = [];
+var colonyVisibleOpacity = 1.0;
+var colonyHiddenOpacity = 0.0;
+var groundVisibleOpacity = 0.15;
+var groundHiddenOpacity = 0.0;
 
 // Apply cast-metal material
 var colonyMat = new THREE.MeshPhysicalMaterial({
@@ -557,7 +614,9 @@ colony.traverse(function(child) {
       clearcoatRoughness: 0.12,
       envMapIntensity: 2.2,
       sheen: 0.15,
-      sheenColor: new THREE.Color(0xffffff)
+      sheenColor: new THREE.Color(0xffffff),
+      transparent: true,
+      opacity: colonyVisibleOpacity
     });
 
     // Aggressively dim ALL light in dark cave areas (overcomes clearcoat/env washout)
@@ -574,6 +633,7 @@ colony.traverse(function(child) {
     };
 
     child.material = mat;
+    colonyShellMaterials.push(mat);
     child.castShadow = true;
     child.receiveShadow = true;
   }
@@ -607,6 +667,25 @@ groundMesh.rotation.x = -Math.PI / 2;
 groundMesh.position.y = minY - cy - 0.1;
 groundMesh.receiveShadow = true;
 scene.add(groundMesh);
+
+function applyColonyVisibility() {
+  var shellOpacity = showColony ? colonyVisibleOpacity : colonyHiddenOpacity;
+  var shadowOpacity = showColony ? groundVisibleOpacity : groundHiddenOpacity;
+
+  colony.visible = showColony;
+  groundMesh.visible = showColony;
+
+  colonyShellMaterials.forEach(function(mat) {
+    mat.opacity = shellOpacity;
+    mat.transparent = true;
+    mat.needsUpdate = true;
+  });
+
+  groundMat.opacity = shadowOpacity;
+  groundMat.transparent = true;
+  groundMat.needsUpdate = true;
+  btnShowColonyText.textContent = showColony ? 'SHOW COLONY: YES' : 'SHOW COLONY: OFF';
+}
 
 // ---------- CAMERA ----------
 var camDist = Math.max(totalHeight * 2.0, scaledSize.length() * 1.5, 22);
@@ -850,6 +929,8 @@ var btnPlay = document.getElementById('btn-play');
 var btnPrev = document.getElementById('btn-prev');
 var btnNext = document.getElementById('btn-next');
 var btnRestart = document.getElementById('btn-restart');
+var btnShowColony = document.getElementById('btn-show-colony');
+var btnShowColonyText = document.getElementById('btn-show-colony-text');
 var spSlider = document.getElementById('sp-slider');
 var spVal = document.getElementById('sp-val');
 var tlSlider = document.getElementById('tl-slider');
@@ -875,6 +956,10 @@ btnPrev.addEventListener('click', function() {
 btnNext.addEventListener('click', function() {
   if (currentTurn < turns.length - 1) { currentTurn++; turnProgress = 0; animComplete = false; rebuildAntsToTurn(currentTurn); }
 });
+btnShowColony.addEventListener('click', function() {
+  showColony = !showColony;
+  applyColonyVisibility();
+});
 spSlider.addEventListener('input', function() {
   speed = parseFloat(spSlider.value);
   spVal.textContent = speed.toFixed(1) + 'x';
@@ -885,6 +970,7 @@ tlSlider.addEventListener('input', function() {
   if (target >= turns.length) { animComplete = true; rebuildAntsToTurn(turns.length); hideFinishedAnts(); }
   else { animComplete = false; rebuildAntsToTurn(target); }
 });
+applyColonyVisibility();
 
 // ---------- LOADING FADE ----------
 var ld = document.getElementById('loading');
