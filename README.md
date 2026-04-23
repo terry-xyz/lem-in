@@ -74,10 +74,28 @@ go run ./cmd/lem-in examples/example01.txt | go run ./cmd/visualizer-web > colon
 Or:
 
 ```sh
-make viz-web FILE=examples/example01.txt > colony.html
+make viz-web examples/example01.txt
 ```
 
-Open `colony.html` in a browser.
+This writes `colony.html`. Open it in a browser.
+
+You can override the output file:
+
+```sh
+make viz-web examples/example01.txt OUT=my-colony.html
+```
+
+To generate `colony.html` and open it automatically:
+
+```sh
+make viz-web-open examples/example01.txt
+```
+
+The open target also supports `OUT`:
+
+```sh
+make viz-web-open examples/example01.txt OUT=my-colony.html
+```
 
 ## Input Format
 
