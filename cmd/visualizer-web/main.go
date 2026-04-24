@@ -331,7 +331,7 @@ canvas{display:block}
 <div id="controls">
   <button id="btn-restart" title="Restart">&#8634;</button>
   <button id="btn-prev" title="Previous">&#9664;</button>
-  <button id="btn-play" class="active" title="Play/Pause">&#9654;</button>
+  <button id="btn-play" class="active" title="Play/Pause">&#10074;&#10074;</button>
   <button id="btn-next" title="Next">&#9654;</button>
   <div class="tl">
     <input type="range" id="tl-slider" min="0" max="0" step="1" value="0">
@@ -986,13 +986,18 @@ var tlSlider = document.getElementById('tl-slider');
 var turnValue = document.getElementById('turn-value');
 var infoDetail = document.getElementById('info-detail');
 
+function applyPlaybackState() {
+  btnPlay.innerHTML = isPlaying ? '&#10074;&#10074;' : '&#9654;';
+  btnPlay.classList.toggle('active', isPlaying);
+}
+
 infoDetail.textContent = SIM_DATA.antCount + ' ants  |  ' + rooms.length + ' rooms  |  ' + links.length + ' tunnels  |  ' + turns.length + ' turns';
 tlSlider.max = turns.length;
+applyPlaybackState();
 
 btnPlay.addEventListener('click', function() {
   isPlaying = !isPlaying;
-  btnPlay.innerHTML = isPlaying ? '&#10074;&#10074;' : '&#9654;';
-  btnPlay.classList.toggle('active', isPlaying);
+  applyPlaybackState();
 });
 btnRestart.addEventListener('click', function() {
   currentTurn = 0; turnProgress = 0;

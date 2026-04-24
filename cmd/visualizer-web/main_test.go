@@ -251,6 +251,15 @@ func TestBuildHTML_AntOcclusionOutlineUsesDepthBuffer(t *testing.T) {
 	}
 }
 
+// TestBuildHTML_PlayButtonStartsInPlayingState verifies the initial transport icon matches the default autoplay state.
+func TestBuildHTML_PlayButtonStartsInPlayingState(t *testing.T) {
+	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[[]]}`
+	html := buildHTML(jsonStr, "")
+
+	assertContainsBlock(t, html, `<button id="btn-play" class="active" title="Play/Pause">&#10074;&#10074;</button>`)
+	assertContainsBlock(t, html, `var isPlaying = true;`)
+}
+
 // TestBuildHTML_ShowColonyToggleMarkupAndHooks verifies the colony-visibility control and its script hooks are present in the document.
 func TestBuildHTML_ShowColonyToggleMarkupAndHooks(t *testing.T) {
 	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
