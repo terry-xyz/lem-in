@@ -268,6 +268,18 @@ canvas{display:block}
 @media (max-width: 820px) {
   #auto-rotate-toggle-wrap{left:16px;bottom:82px}
 }
+@media (max-width: 720px) {
+  #info{top:16px;left:18px}
+  #turn{top:16px;right:18px}
+  #controls{left:12px;right:12px;bottom:12px;transform:none;
+    padding:10px 12px;gap:10px;justify-content:center;flex-wrap:wrap}
+  .tl{order:2;flex:1 0 100%;min-width:0}
+  .sp{order:3;width:100%;justify-content:space-between}
+  #colony-toggle-wrap,#auto-rotate-toggle-wrap{bottom:104px}
+  #auto-rotate-toggle-wrap{left:12px}
+  #colony-toggle-wrap{right:12px}
+  .button-text{font-size:0.62rem;padding:10px 14px}
+}
 .button-wrap{transition:all 400ms cubic-bezier(0.25,1,0.5,1)}
 .glass-button{position:relative;border:none;border-radius:999px;cursor:pointer;
   outline:none;background:linear-gradient(-75deg,rgba(255,255,255,0.05),

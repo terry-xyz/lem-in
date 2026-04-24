@@ -260,6 +260,25 @@ func TestBuildHTML_PlayButtonStartsInPlayingState(t *testing.T) {
 	assertContainsBlock(t, html, `var isPlaying = true;`)
 }
 
+// TestBuildHTML_MobileControlsUseTwoRowLayout verifies narrow screens stack the transport bar and move the side toggles out of its way.
+func TestBuildHTML_MobileControlsUseTwoRowLayout(t *testing.T) {
+	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[[]]}`
+	html := buildHTML(jsonStr, "")
+
+	assertContainsBlock(t, html, `@media (max-width: 720px) {
+  #info{top:16px;left:18px}
+  #turn{top:16px;right:18px}
+  #controls{left:12px;right:12px;bottom:12px;transform:none;
+    padding:10px 12px;gap:10px;justify-content:center;flex-wrap:wrap}
+  .tl{order:2;flex:1 0 100%;min-width:0}
+  .sp{order:3;width:100%;justify-content:space-between}
+  #colony-toggle-wrap,#auto-rotate-toggle-wrap{bottom:104px}
+  #auto-rotate-toggle-wrap{left:12px}
+  #colony-toggle-wrap{right:12px}
+  .button-text{font-size:0.62rem;padding:10px 14px}
+}`)
+}
+
 // TestBuildHTML_ShowColonyToggleMarkupAndHooks verifies the colony-visibility control and its script hooks are present in the document.
 func TestBuildHTML_ShowColonyToggleMarkupAndHooks(t *testing.T) {
 	jsonStr := `{"antCount":3,"rooms":[],"links":[],"turns":[]}`
