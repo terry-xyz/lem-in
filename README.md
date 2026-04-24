@@ -8,6 +8,8 @@ The repository includes:
 - `cmd/visualizer-tui`: a terminal visualizer for solver output
 - `cmd/visualizer-web`: an HTML/3D visualizer for solver output
 
+⭐️ [Here](https://terry-xyz.github.io/lem-in/) is an example of 3D visualizer!
+
 ## Requirements
 
 - Go 1.25.4 or newer
@@ -123,7 +125,7 @@ Rules:
 - Tunnel lines are bidirectional links in `room1-room2` form
 - Lines starting with a single `#` are treated as comments
 
-Sample inputs are available in [`examples/`](./examples).
+Sample inputs are available in `[examples/](./examples)`.
 
 ## Project Layout
 
@@ -170,3 +172,4 @@ go vet ./...
 - `internal/solver` finds paths and distributes ants across them
 - `internal/simulator` emits the final turn-by-turn schedule
 - `internal/format` parses solver output for the visualizers
+
