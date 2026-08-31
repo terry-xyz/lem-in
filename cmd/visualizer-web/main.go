@@ -230,6 +230,12 @@ canvas{display:block}
   transition:opacity 0.8s ease}
 #loading span{font-size:0.85rem;color:#999;letter-spacing:0.15em;
   text-transform:uppercase}
+#loading.error{padding:24px;text-align:center}
+#loading .loading-error-box{max-width:520px}
+#loading .loading-error-title{display:block;margin-bottom:10px;
+  font-size:1rem;color:#8b5e3c;letter-spacing:0.1em;text-transform:uppercase}
+#loading .loading-error-detail{display:block;font-size:0.8rem;color:#999;
+  line-height:1.5;letter-spacing:0.02em;text-transform:none;overflow-wrap:anywhere}
 #vignette{position:fixed;inset:0;pointer-events:none;z-index:98;
   background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,0.12) 100%)}
 #info{position:fixed;top:24px;left:28px;z-index:100}
@@ -331,6 +337,46 @@ canvas{display:block}
 </head>
 <body>
 <div id="loading"><span>Loading colony...</span></div>
+<script>
+function showLoadingError(error) {
+  var loading = document.getElementById('loading');
+  if (!loading || window.__colonyReady) return;
+
+  var detail = error && error.message ? error.message : String(error || 'Unknown startup error');
+  var box = document.createElement('div');
+  box.className = 'loading-error-box';
+  var title = document.createElement('span');
+  title.className = 'loading-error-title';
+  title.textContent = 'Unable to load colony';
+  var message = document.createElement('span');
+  message.className = 'loading-error-detail';
+  message.textContent = detail;
+  box.appendChild(title);
+  box.appendChild(message);
+  loading.textContent = '';
+  loading.appendChild(box);
+  loading.className = 'error';
+  loading.style.display = 'flex';
+  loading.style.opacity = '1';
+}
+
+function loadExternalScript(src) {
+  return new Promise(function(resolve, reject) {
+    var script = document.createElement('script');
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = function() { reject(new Error('Failed to load fallback decompressor')); };
+    document.head.appendChild(script);
+  });
+}
+
+window.addEventListener('error', function(event) {
+  showLoadingError(event.error || event.message);
+});
+window.addEventListener('unhandledrejection', function(event) {
+  showLoadingError(event.reason);
+});
+</script>
 <div id="vignette"></div>
 <div id="info">
   <div class="title">Colony</div>
@@ -391,6 +437,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+(async function boot() {
+
 // ---------- ERROR HANDLING ----------
 if (SIM_DATA.error) {
   document.getElementById('loading').style.display = 'none';
@@ -398,7 +446,7 @@ if (SIM_DATA.error) {
   ov.style.cssText = 'position:fixed;inset:0;background:#f0ece6;display:flex;align-items:center;justify-content:center;flex-direction:column;z-index:1000';
   ov.innerHTML = '<h1 style="color:#c44;font-size:1.5rem;margin-bottom:1rem">Error</h1><p style="color:#888;max-width:500px;text-align:center">' + SIM_DATA.error.replace(/</g,'&lt;') + '</p>';
   document.body.appendChild(ov);
-  throw new Error('Input error');
+  return;
 }
 
 // ---------- NOISE ----------
@@ -513,15 +561,35 @@ var hemiLight = new THREE.HemisphereLight(0xf0ece6, 0x0a0805, 0.4);
 scene.add(hemiLight);
 
 // ---------- LOAD COLONY MODEL ----------
+async function inflateGzip(bytes) {
+  if (typeof DecompressionStream === 'function') {
+    try {
+      var ds = new DecompressionStream('gzip');
+      var blob = new Blob([bytes]);
+      return await new Response(blob.stream().pipeThrough(ds)).arrayBuffer();
+    } catch (nativeError) {
+      // Fall through to the compatibility decompressor when the native stream rejects the payload.
+    }
+  }
+
+  if (!window.pako) {
+    await loadExternalScript('https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js');
+  }
+  if (!window.pako || typeof window.pako.ungzip !== 'function') {
+    throw new Error('This browser cannot decompress the embedded colony model');
+  }
+
+  var inflated = window.pako.ungzip(bytes);
+  return inflated.buffer.slice(inflated.byteOffset, inflated.byteOffset + inflated.byteLength);
+}
+
 async function loadColonyModel() {
   var binaryStr = atob(COLONY_MODEL_GZ_B64);
   var len = binaryStr.length;
   var bytes = new Uint8Array(len);
   for (var i = 0; i < len; i++) bytes[i] = binaryStr.charCodeAt(i);
 
-  var ds = new DecompressionStream('gzip');
-  var blob = new Blob([bytes]);
-  var decompressed = await new Response(blob.stream().pipeThrough(ds)).arrayBuffer();
+  var decompressed = await inflateGzip(bytes);
 
   return new Promise(function(resolve, reject) {
     new GLTFLoader().parse(decompressed, '', resolve, reject);
@@ -1099,6 +1167,8 @@ window.addEventListener('resize', function() {
 });
 
 animate();
+window.__colonyReady = true;
+})().catch(showLoadingError);
 </script>
 </body>
 </html>`)

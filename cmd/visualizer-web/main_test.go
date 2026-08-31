@@ -455,3 +455,22 @@ func TestBuildHTML_ErrorOverlay(t *testing.T) {
 		t.Error("expected error in data")
 	}
 }
+
+// TestBuildHTML_LoadingFailureRecovery verifies browser startup failures cannot leave the loading overlay stuck forever.
+func TestBuildHTML_LoadingFailureRecovery(t *testing.T) {
+	html := buildHTML(`{"antCount":1,"rooms":[],"links":[],"turns":[]}`, "model")
+
+	required := []string{
+		`function showLoadingError(error)`,
+		`window.addEventListener('error'`,
+		`window.addEventListener('unhandledrejection'`,
+		`loadExternalScript('https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js')`,
+		`window.pako.ungzip(bytes)`,
+		`})().catch(showLoadingError);`,
+	}
+	for _, snippet := range required {
+		if !strings.Contains(html, snippet) {
+			t.Errorf("HTML missing loading recovery snippet %q", snippet)
+		}
+	}
+}
